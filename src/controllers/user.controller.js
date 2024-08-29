@@ -115,7 +115,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
     const existedUser = await User.findOne({ email });
 
     if (existedUser && existedUser.isGoogleVerfied === false) {
-        throw new ApiError(409, 'User with same email or username already exists');
+        throw new ApiError(409, 'An account with this email already exists. Would you like to link your Google account to this existing account?');
     }
 
     if (existedUser && existedUser.isGoogleVerfied === true && existedUser.isVerfied === true) {
@@ -128,7 +128,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         }
 
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-            new ApiResponse(200, { existedUser, accessToken, refreshToken }, "User logged in sucessully")
+            new ApiResponse(200, { loggedInUser:existedUser, accessToken, refreshToken }, "User logged in sucessully")
         );
     }
 
@@ -155,7 +155,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
     }
 
     return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-        new ApiResponse(200, { createdUser, accessToken, refreshToken }, "User logged in sucessully")
+        new ApiResponse(200, { loggedInUser:createdUser, accessToken, refreshToken }, "User logged in sucessully")
     );
 });
 
@@ -171,7 +171,6 @@ const linkGoogleAccount = asyncHandler(async (req, res) => {
     if (!existedUser) {
         throw new ApiError(401, 'User does not exists');
     }
-    // An account with this email already exists. Would you like to link your Google account to this existing account?
 
     const mailResponse = await mailSender(email, existedUser._id, "GOOGLE");
 
@@ -320,11 +319,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const addExtraInfo = asyncHandler(async (req, res) => {
-    const { address, gender, age } = req.body;
+    const { address, gender, age, phoneNo } = req.body;
     const updatedUser = await User.findOneAndUpdate(
         { _id: req.user._id },
         {
             $set: {
+                phoneNo,
                 age,
                 address,
                 gender
