@@ -67,8 +67,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user) {
-        throw new ApiError(404, "Invalid email");
+    if (!user && !user?.password) {
+        throw new ApiError(404, "Invalid credential");
     }
 
     // you cant access isPasswordCorrect method directly through 'User' beacause User is mogoose object 
