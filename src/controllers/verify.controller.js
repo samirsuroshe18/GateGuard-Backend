@@ -90,7 +90,7 @@ const verifyGoogle = asyncHandler(async (req, res) => {
     user.googleVerifyTokenExpiry = undefined;
     user.verifyToken = undefined;
     user.verifyTokenExpiry = undefined;
-    await user.save()
+    await user.save({ validateBeforeSave: false })
 
     return res.render("googleLinkSuccess");
 
