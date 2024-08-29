@@ -67,7 +67,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user && !user?.password) {
+    if (!user || !user?.password) {
         throw new ApiError(404, "Invalid credential");
     }
 
