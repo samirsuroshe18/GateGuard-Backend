@@ -121,6 +121,11 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
     if (existedUser && existedUser.isGoogleVerfied === true && existedUser.isVerfied === true) {
         const { accessToken, refreshToken } = await generateAccessAndRefreshToken(existedUser._id);
 
+        existedUser.userName = userName;
+        existedUser.email = email;
+        existedUser.profile = profile;
+        await existedUser.save({ validateBeforeSave: false });
+
         //option object is created beacause we dont want to modified the cookie to front side
         const option = {
             httpOnly: true,
@@ -128,7 +133,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         }
 
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-            new ApiResponse(200, { loggedInUser:existedUser, accessToken, refreshToken }, "User logged in sucessully")
+            new ApiResponse(200, { loggedInUser: existedUser, accessToken, refreshToken }, "User logged in sucessully")
         );
     }
 
@@ -155,7 +160,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
     }
 
     return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-        new ApiResponse(200, { loggedInUser:createdUser, accessToken, refreshToken }, "User logged in sucessully")
+        new ApiResponse(200, { loggedInUser: createdUser, accessToken, refreshToken }, "User logged in sucessully")
     );
 });
 
