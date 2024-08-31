@@ -23,6 +23,27 @@ const addressSchema = new Schema({
     },
 });
 
+const apartmentSchema = new Schema({
+    societyName: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    societyBlock: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    apartment: {
+        type: String,
+        trim: true,
+    },
+    role: {
+        type: String,
+        enum: ['Owner', 'Tenant'],
+    },
+});
+
 const userSchema = new Schema({
     userName: {
         type: String,
@@ -77,6 +98,16 @@ const userSchema = new Schema({
         type: String,
         enum: ['user', 'admin', 'superadmin'],
         default: 'user'
+    },
+
+    profileType: {
+        type: String,
+        required: true,
+        enum: ['Resident', 'Security'],
+    },
+
+    apartments: {
+        type: [apartmentSchema],
     },
 
     refreshToken: {

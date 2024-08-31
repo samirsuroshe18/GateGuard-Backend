@@ -324,7 +324,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const addExtraInfo = asyncHandler(async (req, res) => {
-    const { address, gender, age, phoneNo } = req.body;
+    const { address, gender, age, phoneNo, profileType } = req.body;
+    console.log(req.body.profileType)
     const updatedUser = await User.findOneAndUpdate(
         { _id: req.user._id },
         {
@@ -332,7 +333,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
                 phoneNo,
                 age,
                 address,
-                gender
+                gender,
+                profileType
             }
         },
         { new: true }
@@ -347,6 +349,49 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     );
 });
 
+const addApartment = asyncHandler(async (req, res) =>{
+    const updatedUser = await User.findOneAndUpdate(
+        { _id: req.user._id },
+        {
+            $push: {
+                apartments: req.body
+            }
+        },
+        { new: true }
+    );
+
+    if (!updatedUser) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, updatedUser, "Society details updated successfully")
+    );
+});
+
+const deleteApartment = asyncHandler(async (req, res) => {
+    const { apartmentId } = req.body;
+
+    const updatedUser = await User.findOneAndUpdate(
+        { _id: req.user._id },
+        {
+            $pull: {
+                apartments: { _id: apartmentId }
+            }
+        },
+        { new: true }
+    );
+
+    if (!updatedUser) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, updatedUser, "Apartment deleted successfully")
+    );
+});
+
+
 export {
     registerUser,
     loginUser,
@@ -358,5 +403,7 @@ export {
     getCurrentUser,
     refreshAccessToken,
     updateAccountDetails,
-    addExtraInfo
+    addExtraInfo,
+    addApartment,
+    deleteApartment
 };
