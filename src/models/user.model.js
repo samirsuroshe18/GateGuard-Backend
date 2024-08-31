@@ -44,6 +44,15 @@ const apartmentSchema = new Schema({
     },
 });
 
+const securityGuardSchema = new Schema({
+    societyName: {
+        type: String,
+    },
+    gateAssign: {
+        type: String
+    },
+});
+
 const userSchema = new Schema({
     userName: {
         type: String,
@@ -107,6 +116,10 @@ const userSchema = new Schema({
 
     apartments: {
         type: [apartmentSchema],
+    },
+
+    gate: {
+        type: [securityGuardSchema],
     },
 
     refreshToken: {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addApartment, addExtraInfo, changeCurrentPassword, deleteApartment, forgotPassword, getCurrentUser, linkGoogleAccount, loginUser, logoutUser, refreshAccessToken, registerUser, registerUserGoogle, updateAccountDetails } from "../controllers/user.controller.js";
+import { addApartment, addExtraInfo, addGate, changeCurrentPassword, deleteApartment, forgotPassword, getCurrentUser, linkGoogleAccount, loginUser, logoutUser, refreshAccessToken, registerUser, registerUserGoogle, updateAccountDetails } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
 
@@ -21,6 +21,7 @@ router.route('/update-details').post(verifyJwt, upload.single("profile"), update
 router.route('/extra-info').post(verifyJwt, addExtraInfo);
 router.route('/add-apartment').post(verifyJwt, addApartment);
 router.route('/delete-apartment').post(verifyJwt, deleteApartment);
+router.route('/add-gate').post(verifyJwt, addGate);
 
 
 export default router;

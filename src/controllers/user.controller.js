@@ -391,6 +391,25 @@ const deleteApartment = asyncHandler(async (req, res) => {
     );
 });
 
+const addGate = asyncHandler(async (req, res) =>{
+    const updatedUser = await User.findOneAndUpdate(
+        { _id: req.user._id },
+        {
+            $push: {
+                gate : req.body
+            }
+        },
+        { new: true }
+    );
+
+    if (!updatedUser) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, updatedUser, "Society details updated successfully")
+    );
+});
 
 export {
     registerUser,
@@ -405,5 +424,6 @@ export {
     updateAccountDetails,
     addExtraInfo,
     addApartment,
-    deleteApartment
+    deleteApartment,
+    addGate
 };
