@@ -102,7 +102,6 @@ const userSchema = new Schema({
 
     profileType: {
         type: String,
-        required: true,
         enum: ['Resident', 'Security'],
     },
 
