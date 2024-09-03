@@ -1,3 +1,5 @@
+import admin from 'firebase-admin';
+
 const sendNotification = (role) => {
     const message = {
       notification: {
