@@ -6,6 +6,7 @@ import { dirname } from 'path';
 import path from 'path';
 
 const app = express();
+initializeFirebaseAdmin();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,6 +29,7 @@ app.use(cookieParser());
 // routes import
 import userRouter from './routes/user.routes.js';
 import verifyRouter from './routes/verify.routes.js';
+import initializeFirebaseAdmin from "./utils/firebaseAdminSdk.js";
 
 
 //Routes declaration

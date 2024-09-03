@@ -4,6 +4,7 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { User } from '../models/user.model.js';
 import mailSender from '../utils/mailSender.js';
 import fs from 'fs';
+import { sendNotification } from '../utils/sendResidentNotification.js';
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -131,6 +132,8 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
             httpOnly: true,
             secure: true
         }
+
+        sendNotification('Resident')
 
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
             new ApiResponse(200, { loggedInUser: existedUser, accessToken, refreshToken }, "User logged in sucessully")
