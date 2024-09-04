@@ -103,6 +103,10 @@ const userSchema = new Schema({
         default: false,
     },
 
+    FCMToken : {
+        type: String
+    },
+
     role: {
         type: String,
         enum: ['user', 'admin', 'superadmin'],

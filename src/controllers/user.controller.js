@@ -60,7 +60,7 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, FCMToken } = req.body;
 
     if (!email && !password) {
         throw new ApiError(400, "All fields are required");
@@ -94,6 +94,8 @@ const loginUser = asyncHandler(async (req, res) => {
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken -__v");
+    loggedInUser.FCMToken = FCMToken;
+    await loggedInUser.save({ validateBeforeSave: false });
 
     //option object is created beacause we dont want to modified the cookie to front side
     const option = {
@@ -107,7 +109,7 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const registerUserGoogle = asyncHandler(async (req, res) => {
-    const { userName, email, profile } = req.body;
+    const { userName, email, profile, FCMToken } = req.body;
 
     if (!userName?.trim() || !email?.trim() || !profile?.trim()) {
         throw new ApiError(400, "All fields are required");
@@ -125,6 +127,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         existedUser.userName = userName;
         existedUser.email = email;
         existedUser.profile = profile;
+        existedUser.FCMToken = FCMToken;
         await existedUser.save({ validateBeforeSave: false });
 
         //option object is created beacause we dont want to modified the cookie to front side
@@ -146,6 +149,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         profile,
         isGoogleVerfied: true,
         isVerfied: true,
+        FCMToken
     });
 
     const createdUser = await User.findById(user._id).select("-password");
@@ -352,7 +356,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     );
 });
 
-const addApartment = asyncHandler(async (req, res) =>{
+const addApartment = asyncHandler(async (req, res) => {
     const updatedUser = await User.findOneAndUpdate(
         { _id: req.user._id },
         {
@@ -394,12 +398,12 @@ const deleteApartment = asyncHandler(async (req, res) => {
     );
 });
 
-const addGate = asyncHandler(async (req, res) =>{
+const addGate = asyncHandler(async (req, res) => {
     const updatedUser = await User.findOneAndUpdate(
         { _id: req.user._id },
         {
             $push: {
-                gate : req.body
+                gate: req.body
             }
         },
         { new: true }
