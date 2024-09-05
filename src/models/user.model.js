@@ -29,18 +29,27 @@ const apartmentSchema = new Schema({
         required: true,
         trim: true,
     },
+
     societyBlock: {
         type: String,
         required: true,
         trim: true,
     },
+
     apartment: {
         type: String,
         trim: true,
     },
-    role: {
+
+    ownership: {
         type: String,
         enum: ['Owner', 'Tenant'],
+    },
+
+    residentStatus: {
+        type: String,
+        enum: ['none', 'pending', 'rejected', 'approve'],
+        default: 'none'
     },
 });
 
@@ -50,6 +59,11 @@ const securityGuardSchema = new Schema({
     },
     gateAssign: {
         type: String
+    },
+    guardStatus: {
+        type: String,
+        enum: ['none', 'pending', 'rejected', 'approve'],
+        default: 'none'
     },
 });
 
@@ -89,8 +103,8 @@ const userSchema = new Schema({
         type: String
     },
 
-    age: {
-        type: Number
+    dateOfBirth: {
+        type: String
     },
 
     isVerfied: {

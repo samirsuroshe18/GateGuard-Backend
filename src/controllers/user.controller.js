@@ -331,29 +331,75 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const addExtraInfo = asyncHandler(async (req, res) => {
-    const { address, gender, age, phoneNo, profileType } = req.body;
-    console.log(req.body.profileType)
-    const updatedUser = await User.findOneAndUpdate(
-        { _id: req.user._id },
-        {
-            $set: {
-                phoneNo,
-                age,
-                address,
-                gender,
-                profileType
-            }
-        },
-        { new: true }
-    );
+    const { address, gender, dateOfBirth, phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
+    
+    if(profileType!=null && profileType=='Resident'){
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: req.user._id },
+            {
+                $set: {
+                    phoneNo,
+                    dateOfBirth,
+                    address,
+                    gender,
+                    profileType
+                },
+                $push: {
+                    apartments: {
+                        societyName,
+                        societyBlock,
+                        apartment,
+                        ownership,
+                        residentStatus:'pending'
+                    }
+                }
+            },
+            { new: true }
+        );
 
-    if (!updatedUser) {
-        throw new ApiError(500, "Something went wrong");
+        if (!updatedUser) {
+            throw new ApiError(500, "Something went wrong");
+        }
+
+        const admin = await User.findOne({role:'admin'});
+        sendNotification(admin.FCMToken, 'sam');
+    
+        return res.status(200).json(
+            new ApiResponse(200, updatedUser, "Exatra details updated successfully")
+        );
+    }else{
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: req.user._id },
+            {
+                $set: {
+                    phoneNo,
+                    dateOfBirth,
+                    address,
+                    gender,
+                    profileType
+                },
+                $push: {
+                    gate: {
+                        societyName,
+                        gateAssign,
+                        guardStatus:'pending'
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            throw new ApiError(500, "Something went wrong");
+        }
+
+        const admin = await User.findOne({role:'admin'});
+        sendNotification(admin.FCMToken, 'samir')
+    
+        return res.status(200).json(
+            new ApiResponse(200, updatedUser, "Exatra details updated successfully")
+        );
     }
-
-    return res.status(200).json(
-        new ApiResponse(200, updatedUser, "Exatra details updated successfully")
-    );
 });
 
 const addApartment = asyncHandler(async (req, res) => {
