@@ -1,41 +1,26 @@
 import admin from 'firebase-admin';
 
-const sendNotification = (fcmToken) => {
+const sendNotification = (token, role) => {
   const message = {
-    token: fcmToken,
     notification: {
-      title: "New Request",
-      body: "You have a new approval request.",
+      title: 'New User Role Selection',
+      body: `A user has selected the role: ${role}`,
+      imageUrl: 'https://lh3.googleusercontent.com/a/ACg8ocJLc-iN0blZ8C0zfC9IzhmY4lGnW0onGwtm-PleG9sdqTHzdeCP=s96-c', // URL to your image
     },
     data: {
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      click_action: 'FLUTTER_NOTIFICATION_CLICK',
+      action_approve: 'APPROVE_ACTION',
+      action_reject: 'REJECT_ACTION',
     },
-    android: {
-      notification: {
-        title: "New Request",
-        body: "Approve or Reject the request.",
-        // Configure action buttons
-        actions: [
-          { title: "Approve", action: "APPROVE" },
-          { title: "Reject", action: "REJECT" }
-        ]
-      },
-    },
-    apns: {
-      payload: {
-        aps: {
-          category: "NEW_REQUEST",
-        },
-      },
-    },
+    token: token,
   };
 
   admin.messaging().send(message)
     .then((response) => {
-      console.log('Successfully sent message:', response);
+      console.log('Successfully sent notification:', response);
     })
     .catch((error) => {
-      console.log('Error sending message:', error);
+      console.log('Error sending notification:', error);
     });
 };
 
