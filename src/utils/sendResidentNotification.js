@@ -9,8 +9,8 @@ const sendNotification = (token, role) => {
     },
     data: {
       click_action: 'FLUTTER_NOTIFICATION_CLICK',
-      action_approve: 'APPROVE_ACTION',
-      action_reject: 'REJECT_ACTION',
+      action: 'USER_ROLE_SELECTION', // Use this to identify the notification
+      payload: role,  // This could be additional info, like role or any other data
     },
     token: token,
   };
