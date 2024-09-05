@@ -1,3 +1,5 @@
+import admin from 'firebase-admin';
+
 const sendNotification = (token, role) => {
   const message = {
     notification: {
@@ -21,3 +23,6 @@ const sendNotification = (token, role) => {
       console.log('Error sending notification:', error);
     });
 };
+
+
+export { sendNotification }
