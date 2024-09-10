@@ -136,15 +136,6 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
             secure: true
         }
 
-        const admin = await User.findOne({ role: 'admin' });
-
-        const payload = {
-            name: existedUser.name,
-            email: existedUser.email
-        }
-
-        sendNotification(admin.FCMToken, 'Login user', payload);
-
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
             new ApiResponse(200, { loggedInUser: existedUser, accessToken, refreshToken }, "User logged in sucessully")
         );
@@ -366,6 +357,10 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         const payload = {
             userName: updatedUser.userName,
             profile: updatedUser.profile,
+            societyName : updatedUser.societyName,
+            societyBlock : updatedUser.societyBlock,
+            apartment : updatedUser.apartments,
+            ownership : updatedUser.ownership
         }
 
         sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
@@ -398,6 +393,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         const payload = {
             userName: updatedUser.userName,
             profile: updatedUser.profile,
+            societyName : updatedUser.societyName,
+            gateAssign : updatedUser.gateAssign,
         }
 
         sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
