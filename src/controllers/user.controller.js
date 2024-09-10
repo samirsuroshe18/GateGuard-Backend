@@ -137,8 +137,13 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         }
 
         const admin = await User.findOne({role:'admin'});
+
+        const payload = {
+            name: existedUser.name,
+            email : existedUser.email
+        }
         
-        sendNotification(admin.FCMToken, 'sam');
+        sendNotification(admin.FCMToken, 'Login user', payload);
 
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
             new ApiResponse(200, { loggedInUser: existedUser, accessToken, refreshToken }, "User logged in sucessully")
@@ -362,10 +367,6 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         if (!updatedUser) {
             throw new ApiError(500, "Something went wrong");
         }
-
-        const admin = await User.findOne({role:'admin'});
-
-        sendNotification(admin.FCMToken, 'sam');
     
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
@@ -395,10 +396,6 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         if (!updatedUser) {
             throw new ApiError(500, "Something went wrong");
         }
-
-        const admin = await User.findOne({role:'admin'});
-
-        sendNotification(admin.FCMToken, 'samir')
     
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
