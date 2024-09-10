@@ -136,13 +136,13 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
             secure: true
         }
 
-        const admin = await User.findOne({role:'admin'});
+        const admin = await User.findOne({ role: 'admin' });
 
         const payload = {
             name: existedUser.name,
-            email : existedUser.email
+            email: existedUser.email
         }
-        
+
         sendNotification(admin.FCMToken, 'Login user', payload);
 
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
@@ -338,26 +338,21 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const addExtraInfo = asyncHandler(async (req, res) => {
-    const { address, gender, dateOfBirth, phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
-    
-    if(profileType!=null && profileType=='Resident'){
+    const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
+    const admin = await User.findOne({ role: 'admin' });
+
+    if (profileType != null && profileType == 'Resident') {
         const updatedUser = await User.findOneAndUpdate(
             { _id: req.user._id },
             {
-                $set: {
-                    phoneNo,
-                    dateOfBirth,
-                    address,
-                    gender,
-                    profileType
-                },
+                $set: { phoneNo },
                 $push: {
                     apartments: {
-                        societyName,
-                        societyBlock,
-                        apartment,
-                        ownership,
-                        residentStatus:'pending'
+                        societyName, 
+                        societyBlock, 
+                        apartment, 
+                        ownership, 
+                        residentStatus: admin ? 'approve' : 'pending'
                     }
                 }
             },
@@ -367,26 +362,29 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         if (!updatedUser) {
             throw new ApiError(500, "Something went wrong");
         }
-    
+
+        const payload = {
+            userName: updatedUser.userName,
+            profile: updatedUser.profile,
+        }
+
+        sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
+
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
         );
-    }else{
+    } else {
         const updatedUser = await User.findOneAndUpdate(
             { _id: req.user._id },
             {
                 $set: {
                     phoneNo,
-                    dateOfBirth,
-                    address,
-                    gender,
-                    profileType
                 },
                 $push: {
                     gate: {
                         societyName,
                         gateAssign,
-                        guardStatus:'pending'
+                        guardStatus: 'pending'
                     }
                 }
             },
@@ -396,7 +394,14 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         if (!updatedUser) {
             throw new ApiError(500, "Something went wrong");
         }
-    
+
+        const payload = {
+            userName: updatedUser.userName,
+            profile: updatedUser.profile,
+        }
+
+        sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
+
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
         );
