@@ -357,10 +357,10 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         const payload = {
             userName: updatedUser.userName,
             profile: updatedUser.profile,
-            societyName : updatedUser.societyName,
-            societyBlock : updatedUser.societyBlock,
-            apartment : updatedUser.apartments,
-            ownership : updatedUser.ownership
+            societyName,
+            societyBlock,
+            apartment,
+            ownership
         }
 
         sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
@@ -393,8 +393,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         const payload = {
             userName: updatedUser.userName,
             profile: updatedUser.profile,
-            societyName : updatedUser.societyName,
-            gateAssign : updatedUser.gateAssign,
+            societyName,
+            gateAssign,
         }
 
         sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
