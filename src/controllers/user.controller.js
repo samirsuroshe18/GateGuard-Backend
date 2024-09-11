@@ -336,7 +336,10 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         const updatedUser = await User.findOneAndUpdate(
             { _id: req.user._id },
             {
-                $set: { phoneNo },
+                $set: { 
+                    phoneNo,
+                    profileType
+                },
                 $push: {
                     apartments: {
                         societyName, 
