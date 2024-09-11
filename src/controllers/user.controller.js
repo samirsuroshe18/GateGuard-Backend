@@ -360,10 +360,11 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             societyName,
             societyBlock,
             apartment,
-            ownership
+            ownership,
+            action : 'VERIFY_RESIDENT_PROFILE_TYPE'
         }
 
-        sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
+        if(!admin) sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
 
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
@@ -395,6 +396,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             profile: updatedUser.profile,
             societyName,
             gateAssign,
+            action : 'VERIFY_GUARD_PROFILE_TYPE'
         }
 
         sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
