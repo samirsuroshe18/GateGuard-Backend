@@ -378,6 +378,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             {
                 $set: {
                     phoneNo,
+                    profileType
                 },
                 $push: {
                     gate: {
@@ -472,6 +473,19 @@ const addGate = asyncHandler(async (req, res) => {
     );
 });
 
+const updateFCMToken = asyncHandler(async (req, res)=>{
+    const {FCMToken} = req.body;
+    const user = req.user;
+    user.FCMToken = FCMToken;
+    const isUpdate = await user.save({ validateBeforeSave: false });
+    if(!isUpdate){
+        throw new ApiError(500, "Something went wrong");
+    }
+    return res.status(200).json(
+        new ApiResponse(200, {}, "FCM Token updated successfully")
+    );
+});
+
 export {
     registerUser,
     loginUser,
@@ -486,5 +500,6 @@ export {
     addExtraInfo,
     addApartment,
     deleteApartment,
-    addGate
+    addGate,
+    updateFCMToken
 };
