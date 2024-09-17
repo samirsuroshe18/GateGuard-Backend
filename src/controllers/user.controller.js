@@ -336,17 +336,17 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         const updatedUser = await User.findOneAndUpdate(
             { _id: req.user._id },
             {
-                $set: { 
+                $set: {
                     phoneNo,
                     profileType
                 },
                 $push: {
                     apartments: {
-                        societyName, 
-                        societyBlock, 
-                        apartment, 
-                        ownership, 
-                        residentStatus: admin ? 'approve' : 'pending'
+                        societyName,
+                        societyBlock,
+                        apartment,
+                        ownership,
+                        residentStatus: req.user.role === 'admin' ? 'approve' : 'pending'
                     }
                 }
             },
@@ -364,10 +364,10 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             societyBlock,
             apartment,
             ownership,
-            action : 'VERIFY_RESIDENT_PROFILE_TYPE'
+            action: 'VERIFY_RESIDENT_PROFILE_TYPE'
         }
 
-        if(!admin) sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
+        if (req.user.role != 'admin') sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
 
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
@@ -400,7 +400,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             profile: updatedUser.profile,
             societyName,
             gateAssign,
-            action : 'VERIFY_GUARD_PROFILE_TYPE'
+            action: 'VERIFY_GUARD_PROFILE_TYPE'
         }
 
         sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
@@ -473,12 +473,12 @@ const addGate = asyncHandler(async (req, res) => {
     );
 });
 
-const updateFCMToken = asyncHandler(async (req, res)=>{
-    const {FCMToken} = req.body;
+const updateFCMToken = asyncHandler(async (req, res) => {
+    const { FCMToken } = req.body;
     const user = req.user;
     user.FCMToken = FCMToken;
     const isUpdate = await user.save({ validateBeforeSave: false });
-    if(!isUpdate){
+    if (!isUpdate) {
         throw new ApiError(500, "Something went wrong");
     }
     return res.status(200).json(
