@@ -332,7 +332,11 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
     const admin = await User.findOne({ role: 'admin' });
 
+    console.log('admin : ', admin.role);
+    console.log('admin fcm token : ', admin.FCMToken);
+
     if (profileType != null && profileType == 'Resident') {
+        console.log('inside resident');
         const updatedUser = await User.findOneAndUpdate(
             { _id: req.user._id },
             {
@@ -367,7 +371,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             action: 'VERIFY_RESIDENT_PROFILE_TYPE'
         }
 
-        if (req.user.role != 'admin') sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', payload);
+        if (req.user.role != 'admin') sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', JSON.stringify(payload));
+        console.log("user role : ", req.user.role);
 
         return res.status(200).json(
             new ApiResponse(200, updatedUser, "Exatra details updated successfully")

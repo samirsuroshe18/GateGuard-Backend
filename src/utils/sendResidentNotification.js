@@ -4,7 +4,7 @@ const sendNotification = (token, action, payload) => {
   const message = {
     data: {
       action: action,  //'USER_ROLE_SELECTION' Optional: use it if you want to distinguish the notification type
-      payload: JSON.stringify(payload),  // Custom data, like role or any other data you want to send
+      payload: payload,  // Custom data, like role or any other data you want to send
     },
     token: token,
   };
