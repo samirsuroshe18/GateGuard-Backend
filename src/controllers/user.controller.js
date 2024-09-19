@@ -5,6 +5,7 @@ import { User } from '../models/user.model.js';
 import mailSender from '../utils/mailSender.js';
 import fs from 'fs';
 import { sendNotification } from '../utils/sendResidentNotification.js';
+import { ProfileVerification } from '../models/profileVerification.model.js';
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -328,92 +329,158 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
+// const addExtraInfo = asyncHandler(async (req, res) => {
+//     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
+//     const admin = await User.findOne({ role: 'admin' });
+//     const user = req.user;
+
+//     if (profileType != null && profileType == 'Resident') {
+//         const updatedUser = await User.findOneAndUpdate(
+//             { _id: req.user._id },
+//             {
+//                 $set: {
+//                     phoneNo,
+//                     profileType
+//                 },
+//                 $push: {
+//                     apartments: {
+//                         societyName,
+//                         societyBlock,
+//                         apartment,
+//                         ownership,
+//                         residentStatus: req.user.role === 'admin' ? 'approve' : 'pending'
+//                     }
+//                 }
+//             },
+//             { new: true }
+//         );
+
+//         if (!updatedUser) {
+//             throw new ApiError(500, "Something went wrong");
+//         }
+
+//         const payload = {
+//             userName: updatedUser.userName,
+//             profile: updatedUser.profile,
+//             societyName,
+//             societyBlock,
+//             apartment,
+//             ownership,
+//             action: 'VERIFY_RESIDENT_PROFILE_TYPE'
+//         }
+
+//         if (req.user.role != 'admin') sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', JSON.stringify(payload));
+
+//         return res.status(200).json(
+//             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
+//         );
+//     } else {
+//         const updatedUser = await User.findOneAndUpdate(
+//             { _id: req.user._id },
+//             {
+//                 $set: {
+//                     phoneNo,
+//                     profileType
+//                 },
+//                 $push: {
+//                     gate: {
+//                         societyName,
+//                         gateAssign,
+//                         guardStatus: 'pending'
+//                     }
+//                 }
+//             },
+//             { new: true }
+//         );
+
+//         if (!updatedUser) {
+//             throw new ApiError(500, "Something went wrong");
+//         }
+
+//         const payload = {
+//             userName: updatedUser.userName,
+//             profile: updatedUser.profile,
+//             societyName,
+//             gateAssign,
+//             action: 'VERIFY_GUARD_PROFILE_TYPE'
+//         }
+
+//         sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
+
+//         return res.status(200).json(
+//             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
+//         );
+//     }
+// });
+
 const addExtraInfo = asyncHandler(async (req, res) => {
     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
     const admin = await User.findOne({ role: 'admin' });
+    const user = req.user;
 
-    console.log('admin : ', admin.role);
-    console.log('admin fcm token : ', admin.FCMToken);
+    user.phoneNo = phoneNo;
 
-    if (profileType != null && profileType == 'Resident') {
-        console.log('inside resident');
-        const updatedUser = await User.findOneAndUpdate(
-            { _id: req.user._id },
-            {
-                $set: {
-                    phoneNo,
-                    profileType
-                },
-                $push: {
-                    apartments: {
-                        societyName,
-                        societyBlock,
-                        apartment,
-                        ownership,
-                        residentStatus: req.user.role === 'admin' ? 'approve' : 'pending'
-                    }
-                }
-            },
-            { new: true }
-        );
+    if (profileType === 'Resident') {
+        const residentRequest = await ProfileVerification.create({
+            user: user._id,
+            profileType,
+            societyName,
+            societyBlock,
+            apartment,
+            ownership,
+            residentStatus: user.role === 'admin' ? 'approved' : 'pending' // Auto-approve if admin 
+        });
 
-        if (!updatedUser) {
+        if (!residentRequest) {
             throw new ApiError(500, "Something went wrong");
         }
 
-        const payload = {
-            userName: updatedUser.userName,
-            profile: updatedUser.profile,
+        var payload = {
+            userName: user.userName,
+            profile: user.profile,
             societyName,
             societyBlock,
             apartment,
             ownership,
             action: 'VERIFY_RESIDENT_PROFILE_TYPE'
-        }
+        };
+    } else if (profileType === 'Security') {
+        const securityRequest = await ProfileVerification.create({
+            user: user._id,
+            profileType,
+            societyName,
+            gateAssign,
+            guardStatus: 'pending'
+        });
 
-        if (req.user.role != 'admin') sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', JSON.stringify(payload));
-        console.log("user role : ", req.user.role);
-
-        return res.status(200).json(
-            new ApiResponse(200, updatedUser, "Exatra details updated successfully")
-        );
-    } else {
-        const updatedUser = await User.findOneAndUpdate(
-            { _id: req.user._id },
-            {
-                $set: {
-                    phoneNo,
-                    profileType
-                },
-                $push: {
-                    gate: {
-                        societyName,
-                        gateAssign,
-                        guardStatus: 'pending'
-                    }
-                }
-            },
-            { new: true }
-        );
-
-        if (!updatedUser) {
+        if (!securityRequest) {
             throw new ApiError(500, "Something went wrong");
         }
 
-        const payload = {
-            userName: updatedUser.userName,
-            profile: updatedUser.profile,
+        var payload = {
+            userName: user.userName,
+            profile: user.profile,
             societyName,
             gateAssign,
             action: 'VERIFY_GUARD_PROFILE_TYPE'
-        }
-
-        sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
-
-        return res.status(200).json(
-            new ApiResponse(200, updatedUser, "Exatra details updated successfully")
-        );
+        };
     }
+
+    // Save the updated user object
+    const isUpdate = await user.save({ validateBeforeSave: false });
+
+    if (!isUpdate) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    // Send notification to admin if the user is not an admin
+    if (user.role !== 'admin' && admin && admin.FCMToken) {
+        sendNotification(admin.FCMToken, payload.action, JSON.stringify(payload));
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, isUpdate, "Extra details updated successfully")
+    );
 });
 
 const addApartment = asyncHandler(async (req, res) => {

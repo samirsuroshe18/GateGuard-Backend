@@ -13,14 +13,14 @@ const societySchema = new Schema({
     societyApartments: {
         type: [
             {
-                societyBlock : String,
-                apartmentName : String
+                societyBlock: String,
+                apartmentName: String
             }
-        ], // Array of strings
+        ],
         default: [],
     },
     societyGates: {
-        type: [String], // Array of strings
+        type: [String],
         default: [],
     },
 }, { timestamps: true });

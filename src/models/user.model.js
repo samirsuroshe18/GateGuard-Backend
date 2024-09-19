@@ -2,71 +2,6 @@ import mongoose, { Schema } from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from 'bcrypt';
 
-const addressSchema = new Schema({
-    streetAddress: {
-        type: String,
-        required: true,
-        trim: true,
-    },
-    city: {
-        type: String,
-        required: true,
-        trim: true,
-    },
-    state: {
-        type: String,
-        trim: true,
-    },
-    postalCode: {
-        type: String,
-        trim: true,
-    },
-});
-
-const apartmentSchema = new Schema({
-    societyName: {
-        type: String,
-        required: true,
-        trim: true,
-    },
-
-    societyBlock: {
-        type: String,
-        required: true,
-        trim: true,
-    },
-
-    apartment: {
-        type: String,
-        trim: true,
-    },
-
-    ownership: {
-        type: String,
-        enum: ['Owner', 'Tenant'],
-    },
-
-    residentStatus: {
-        type: String,
-        enum: ['none', 'pending', 'rejected', 'approve'],
-        default: 'none'
-    },
-});
-
-const securityGuardSchema = new Schema({
-    societyName: {
-        type: String,
-    },
-    gateAssign: {
-        type: String
-    },
-    guardStatus: {
-        type: String,
-        enum: ['none', 'pending', 'rejected', 'approve'],
-        default: 'none'
-    },
-});
-
 const userSchema = new Schema({
     userName: {
         type: String,
@@ -95,18 +30,6 @@ const userSchema = new Schema({
         type: String,
     },
 
-    address: {
-        type: addressSchema
-    },
-
-    gender: {
-        type: String
-    },
-
-    dateOfBirth: {
-        type: String
-    },
-
     isVerfied: {
         type: Boolean,
         default: false,
@@ -127,19 +50,6 @@ const userSchema = new Schema({
         default: 'user'
     },
 
-    profileType: {
-        type: String,
-        enum: ['Resident', 'Security'],
-    },
-
-    apartments: {
-        type: [apartmentSchema],
-    },
-
-    gate: {
-        type: [securityGuardSchema],
-    },
-
     refreshToken: {
         type: String
     },
@@ -158,25 +68,27 @@ const userSchema = new Schema({
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();
 
-    this.password = await bcrypt.hash(this.password, 10)
+    this.password = await bcrypt.hash(this.password, 10);
     next();
-})
+});
 
 //you can create your custom methods as well by using methods object
 userSchema.methods.isPasswordCorrect = async function (password) {
-    return await bcrypt.compare(password, this.password)
+    return await bcrypt.compare(password, this.password);
 }
 
 //jwt is a bearer token it means the person bear this token we give the access to that person its kind of chavi
 userSchema.methods.generateAccessToken = function () {
-    return jwt.sign({
-        _id: this._id,
-        email: this.email,
-        userName: this.userName,
-    }, process.env.ACCESS_TOKEN_SECRET,
+    return jwt.sign(
+        {
+            _id: this._id,
+            email: this.email,
+            userName: this.userName,
+        }, process.env.ACCESS_TOKEN_SECRET,
         {
             expiresIn: process.env.ACCESS_TOKEN_EXPIRY
-        })
+        }
+    );
 }
 
 userSchema.methods.generateRefreshToken = function () {
