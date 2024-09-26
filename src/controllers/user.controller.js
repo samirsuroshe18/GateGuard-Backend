@@ -428,7 +428,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             societyBlock,
             apartment,
             ownership,
-            residentStatus: user.role === 'admin' ? 'approved' : 'pending' // Auto-approve if admin 
+            residentStatus: user.role === 'admin' ? 'approve' : 'pending'
         });
 
         if (!residentRequest) {

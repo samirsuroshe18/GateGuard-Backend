@@ -5,7 +5,7 @@ import { Society } from '../models/society.model.js';
 
 const addSocietyDetails = asyncHandler(async (req, res) => {
     const { societyName, societyBlocks, societyApartments, societyGates } = req.body;
-    
+
     const society = await Society.create({
         societyName,
         societyBlocks,
@@ -93,7 +93,7 @@ const addSocietyGates = asyncHandler(async (req, res) => {
 const getAllSocieties = asyncHandler(async (req, res) => {
     const societies = await Society.find();
 
-    if(!societies){
+    if (!societies) {
         throw new ApiError(500, "Society not found");
     }
 
@@ -117,7 +117,7 @@ const getSocietyBlocks = asyncHandler(async (req, res) => {
 });
 
 const getAllSocietyApartments = asyncHandler(async (req, res) => {
-    const {societyName} = req.body;
+    const { societyName } = req.body;
 
     const society = await Society.findOne({ societyName });
     if (!society) {
@@ -139,7 +139,7 @@ const getAllSocietyApartments = asyncHandler(async (req, res) => {
 });
 
 const getSocietyApartments = asyncHandler(async (req, res) => {
-    const {societyName, blockName} = req.body;
+    const { societyName, blockName } = req.body;
 
     const society = await Society.findOne({ societyName });
 
@@ -151,7 +151,7 @@ const getSocietyApartments = asyncHandler(async (req, res) => {
         apartment => apartment.societyBlock === blockName
     );
 
-    if (apartmentsInBlock.length<=0) {
+    if (apartmentsInBlock.length <= 0) {
         throw new ApiError(500, "Apartments not found.");
     }
 
@@ -160,7 +160,7 @@ const getSocietyApartments = asyncHandler(async (req, res) => {
         apartment => apartment.apartmentName
     );
 
-    if (apartmentNames.length<=0) {
+    if (apartmentNames.length <= 0) {
         throw new ApiError(500, "Apartments not found.");
     }
 
@@ -202,11 +202,11 @@ const removeSocietyBlock = asyncHandler(async (req, res) => {
 
     const updatedBlock = await Society.findOneAndUpdate(
         { societyName },
-        { 
-            $pull: { 
+        {
+            $pull: {
                 societyBlocks: societyBlock,
-                societyApartments: { societyBlock } 
-            } 
+                societyApartments: { societyBlock }
+            }
         },
         { new: true }
     );
@@ -223,10 +223,10 @@ const removeSocietyApartment = asyncHandler(async (req, res) => {
 
     const updatedApartment = await Society.findOneAndUpdate(
         { societyName },
-        { 
-            $pull: { 
-                societyApartments: { apartmentName } 
-            } 
+        {
+            $pull: {
+                societyApartments: { apartmentName }
+            }
         },
         { new: true }
     );
@@ -243,10 +243,10 @@ const removeSocietyGate = asyncHandler(async (req, res) => {
 
     const updatedGate = await Society.findOneAndUpdate(
         { societyName },
-        { 
-            $pull: { 
+        {
+            $pull: {
                 societyGates: gateName,
-            } 
+            }
         },
         { new: true }
     );
