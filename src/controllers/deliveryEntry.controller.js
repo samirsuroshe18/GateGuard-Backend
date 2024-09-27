@@ -7,8 +7,9 @@ import { sendNotification } from '../utils/sendResidentNotification.js';
 
 const addDeliveryEntry = asyncHandler(async (req, res) => {
     const { name, mobNumber, vehicleDetails, entryType, societyDetails, companyName, companyLogo } = req.body;
-    console.log(typeof JSON.parse(societyDetails).societyApartments);
-    const profileImg = `${process.env.DOMAIN}/images/${req.file.filename}`;
+    // https://smartdwelliot.in/GateGuard-Backend/public/images/1a0791e9-2f0c-45bb-a2a4-7315f7b364ee1433771436668799733-1727464985071.jpg
+    const profileImg = `${process.env.SMARTDWELL_DOMAIN}${req.file.filename}`;
+    // const profileImg = `${process.env.DOMAIN}/images/${req.file.filename}`;
 
     const profile = await ProfileVerification.aggregate([
         {
