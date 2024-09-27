@@ -58,6 +58,8 @@ const getGuardSocietyApartments = asyncHandler(async (req, res) => {
 const getMobileNumber = asyncHandler(async (req, res) => {
     const { mobNumber } = req.body;
 
+
+    const security = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
     const deliveryEntry = await DeliveryEntry.findOne({ mobNumber }).select("-__v -vehicleDetails -entryType -societyDetails -createdAt -updatedAt");
 
     if (!deliveryEntry) {
@@ -67,7 +69,7 @@ const getMobileNumber = asyncHandler(async (req, res) => {
     }
 
     return res.status(200).json(
-        new ApiResponse(200, deliveryEntry, "delivery profile found successfully.")
+        new ApiResponse(200, { ...deliveryEntry.toObject(), societyName: security.societyName, gateName: security.gateAssign }, "delivery profile found successfully.")
     );
 });
 
