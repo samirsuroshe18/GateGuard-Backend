@@ -7,13 +7,14 @@ import { sendNotification } from '../utils/sendResidentNotification.js';
 
 const addDeliveryEntry = asyncHandler(async (req, res) => {
     const { name, mobNumber, vehicleDetails, entryType, societyDetails, companyName, companyLogo } = req.body;
+    console.log(typeof JSON.parse(societyDetails).societyApartments);
     const profileImg = `${process.env.DOMAIN}/images/${req.file.filename}`;
 
     const profile = await ProfileVerification.aggregate([
         {
             $match: {
-                societyName: societyDetails.societyName, // Replace with actual society name
-                $or: societyDetails.societyApartments
+                societyName: JSON.parse(societyDetails).societyName, // Replace with actual society name
+                $or: JSON.parse(societyDetails).societyApartments
             }
         },
         {
@@ -63,9 +64,9 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         name,
         mobNumber,
         profileImg,
-        vehicleDetails,
+        vehicleDetails: JSON.parse(vehicleDetails),
         entryType,
-        societyDetails,
+        societyDetails: JSON.parse(societyDetails),
         companyName,
         companyLogo,
     });
