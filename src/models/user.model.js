@@ -30,12 +30,12 @@ const userSchema = new Schema({
         type: String,
     },
 
-    isVerfied: {
+    isVerified: {
         type: Boolean,
         default: false,
     },
 
-    isGoogleVerfied: {
+    isGoogleVerified: {
         type: Boolean,
         default: false,
     },

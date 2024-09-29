@@ -3,9 +3,12 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
 import mongoose from 'mongoose';
+import { CheckInCode } from '../models/checkInCode.model.js';
+import { generateCheckInCode } from '../utils/generateCheckInCode.js';
+import { User } from '../models/user.model.js';
 
 const getPendingResidentRequest = asyncHandler(async (req, res) => {
-    // const pendingResidentRequest = await ProfileVerification.find({ residentStatus: "pending" }).select('-__v');
+
     const pendingResidentRequest = await ProfileVerification.aggregate([
         {
             $match: {
@@ -133,6 +136,7 @@ const getPendingSecurityRequest = asyncHandler(async (req, res) => {
 const verifyResidentRequest = asyncHandler(async (req, res) => {
     const { residentStatus, user } = req.body;
     const userId = mongoose.Types.ObjectId.createFromHexString(user);
+    const residentUser = await User.findById(userId);
 
     const requestExists = await ProfileVerification.findOne({
         user: userId,
@@ -144,7 +148,19 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
     }
 
     if (residentStatus === 'approve') {
-        requestExists.residentStatus = 'approve'
+        requestExists.residentStatus = 'approve';
+
+        const checkInCode = await CheckInCode.create({
+            user: residentUser._id,
+            name: residentUser.userName,
+            mobNumber: residentUser.phoneNo,
+            profileType: 'Resident',
+            societyName: requestExists.societyName,
+            checkInCode: generateCheckInCode(requestExists.societyName),
+            checkInCodeStart: Date.now(),
+            checkInCodeExpiry: null,
+        });
+
     } else {
         requestExists.residentStatus = 'rejected'
     }

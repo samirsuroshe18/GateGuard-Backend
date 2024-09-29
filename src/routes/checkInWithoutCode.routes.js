@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
-import { getGuardSocietyApartments, getGuardSocietyBlocks, getMobileNumber } from "../controllers/checkIn.controller.js";
+import { getGuardSocietyApartments, getGuardSocietyBlocks, getMobileNumber } from "../controllers/checkInWithoutCode.controller.js";
 
 const router = Router();
 

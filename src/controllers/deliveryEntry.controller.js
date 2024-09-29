@@ -188,6 +188,73 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
     );
 });
 
+const getApproval = asyncHandler(async (req, res) => {
+    const society = await ProfileVerification.findOne({ user: req.user._id });
+    if (!society) {
+        throw new ApiError(500, "No resident found");
+    }
+
+    const deliveryEntry = await DeliveryEntry.findOne({
+        'societyDetails.societyName': society.societyName,
+        'societyDetails.societyApartments': {
+            $elemMatch: {
+                societyBlock: society.societyBlock,
+                apartment: society.apartment
+            }
+        }
+    });
+
+    if (!deliveryEntry) {
+        throw new ApiError(500, "No entry is arrived");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, deliveryEntry, "Delivery Approval request send successfully.")
+    );
+});
+
+const approveDelivery = asyncHandler(async (req, res) => {
+    const { id } = req.body;
+    const deliveryId = mongoose.Types.ObjectId.createFromHexString(id);
+    const delivery = await DeliveryEntry.findById(deliveryId);
+
+    if (!delivery) {
+        throw new ApiError(500, "Invalid id");
+    }
+
+    delivery.residentStatus = 'approve';
+    const isSaved = await delivery.save({ validateBeforeSave: false });
+
+    if (!isSaved) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Delivery Approved successfully.")
+    );
+});
+
+const rejectDelivery = asyncHandler(async (req, res) => {
+    const { id } = req.body;
+    const deliveryId = mongoose.Types.ObjectId.createFromHexString(id);
+    const delivery = await DeliveryEntry.findById(deliveryId);
+
+    if (!delivery) {
+        throw new ApiError(500, "Invalid id");
+    }
+
+    delivery.residentStatus = 'rejected';
+    const isSaved = await delivery.save({ validateBeforeSave: false });
+
+    if (!isSaved) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Delivery rejected successfully.")
+    );
+});
+
 export {
     addDeliveryEntry,
     addDeliveryEntryStringImg

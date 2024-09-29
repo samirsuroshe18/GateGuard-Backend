@@ -33,7 +33,7 @@ import initializeFirebaseAdmin from "./utils/firebaseAdminSdk.js";
 import societyRouter from './routes/society.routes.js';
 import profileVerificationRouter from './routes/profileVerification.routes.js';
 import deliveryEntryRouter from './routes/deliveryEntry.routes.js';
-import checkInRouter from './routes/checkIn.routes.js';
+import checkInRouter from './routes/checkInWithoutCode.routes.js';
 
 
 //Routes declaration

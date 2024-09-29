@@ -61,6 +61,18 @@ const deliveryEntrySchema = new Schema({
         lowercase: true
     },
 
+    residentStatus: {
+        type: String,
+        enum: ['pending', 'rejected', 'approve'],
+        default: 'pending'
+    },
+
+    guardStatus: {
+        type: String,
+        enum: ['pending', 'rejected', 'approve'],
+        default: 'pending'
+    },
+
     societyDetails: societyDetails,
 
 }, { timestamps: true });

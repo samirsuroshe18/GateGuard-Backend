@@ -6,6 +6,8 @@ import mailSender from '../utils/mailSender.js';
 import fs from 'fs';
 import { sendNotification } from '../utils/sendResidentNotification.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
+import { CheckInCode } from '../models/checkInCode.model.js';
+import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -82,13 +84,11 @@ const loginUser = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Invalid user credential");
     }
 
-    if (!user?.isVerfied) {
+    if (!user?.isVerified) {
         const mailResponse = await mailSender(email, user._id, "VERIFY");
 
         if (mailResponse) {
-            return res.status(401).json(
-                new ApiResponse(401, {}, "An email sent to your account please verify in 10 minutes")
-            );
+            throw new ApiError(401, "An email sent to your account please verify in 10 minutes");
         }
     }
 
@@ -104,8 +104,22 @@ const loginUser = asyncHandler(async (req, res) => {
         secure: true
     }
 
+    const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
+    const society = await ProfileVerification.findOne({ user: req?.user?._id });
+
     return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-        new ApiResponse(200, { loggedInUser, accessToken, refreshToken }, "User logged in sucessully")
+        new ApiResponse(200, {
+            loggedInUser: {
+                ...loggedInUser.toObject(),
+                checkInCode: checkInCode ? checkInCode.toObject().checkInCode : null,
+                societyName: society ? society.toObject().societyName : null,
+                societyBlock: society ? society.toObject().societyBlock : null,
+                apartment: society ? society.toObject().apartment : null,
+                profileType: society ? society.toObject().profileType : null
+            },
+            accessToken,
+            refreshToken
+        }, "User logged in sucessully")
     );
 });
 
@@ -118,11 +132,11 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
 
     const existedUser = await User.findOne({ email });
 
-    if (existedUser && existedUser.isGoogleVerfied === false) {
+    if (existedUser && existedUser.isGoogleVerified === false) {
         throw new ApiError(409, 'An account with this email already exists. Would you like to link your Google account to this existing account?');
     }
 
-    if (existedUser && existedUser.isGoogleVerfied === true && existedUser.isVerfied === true) {
+    if (existedUser && existedUser.isGoogleVerified === true && existedUser.isVerified === true) {
         const { accessToken, refreshToken } = await generateAccessAndRefreshToken(existedUser._id);
 
         existedUser.userName = userName;
@@ -136,9 +150,22 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
             httpOnly: true,
             secure: true
         }
+        const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
+        const society = await ProfileVerification.findOne({ user: req?.user?._id });
 
         return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-            new ApiResponse(200, { loggedInUser: existedUser, accessToken, refreshToken }, "User logged in sucessully")
+            new ApiResponse(200, {
+                loggedInUser: {
+                    ...existedUser.toObject(),
+                    checkInCode: checkInCode ? checkInCode.toObject().checkInCode : null,
+                    societyName: society ? society.toObject().societyName : null,
+                    societyBlock: society ? society.toObject().societyBlock : null,
+                    apartment: society ? society.toObject().apartment : null,
+                    profileType: society ? society.toObject().profileType : null
+                },
+                accessToken,
+                refreshToken
+            }, "User logged in sucessully")
         );
     }
 
@@ -146,8 +173,8 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         userName,
         email,
         profile,
-        isGoogleVerfied: true,
-        isVerfied: true,
+        isGoogleVerified: true,
+        isVerified: true,
         FCMToken
     });
 
@@ -165,8 +192,22 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         secure: true
     }
 
+    const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
+    const society = await ProfileVerification.findOne({ user: req?.user?._id });
+
     return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
-        new ApiResponse(200, { loggedInUser: createdUser, accessToken, refreshToken }, "User logged in sucessully")
+        new ApiResponse(200, {
+            loggedInUser: {
+                ...createdUser.toObject(),
+                checkInCode: checkInCode ? checkInCode.toObject().checkInCode : null,
+                societyName: society ? society.toObject().societyName : null,
+                societyBlock: society ? society.toObject().societyBlock : null,
+                apartment: society ? society.toObject().apartment : null,
+                profileType: society ? society.toObject().profileType : null
+            },
+            accessToken,
+            refreshToken
+        }, "User logged in sucessully")
     );
 });
 
@@ -221,7 +262,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
-    const user = await User.findById(req.user?._id);
+    const user = await User.findById(req.user._id);
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
     if (!isPasswordCorrect) {
@@ -239,7 +280,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user || !user?.isVerfied) {
+    if (!user || !user?.isVerified) {
         throw new ApiError(404, "Invalid email");
     }
 
@@ -255,8 +296,17 @@ const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
+    const user = await CheckInCode.findOne({ user: req?.user?._id });
+    const society = await ProfileVerification.findOne({ user: req?.user?._id });
     return res.status(200).json(
-        new ApiResponse(200, req.user, "Current user serched successfully")
+        new ApiResponse(200, {
+            ...req.user.toObject(),
+            checkInCode: user ? user.toObject().checkInCode : null,
+            societyName: society ? society.toObject().societyName : null,
+            societyBlock: society ? society.toObject().societyBlock : null,
+            apartment: society ? society.toObject().apartment : null,
+            profileType: society ? society.toObject().profileType : null
+        }, "Current user serched successfully")
     );
 });
 
@@ -329,90 +379,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
-// const addExtraInfo = asyncHandler(async (req, res) => {
-//     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
-//     const admin = await User.findOne({ role: 'admin' });
-//     const user = req.user;
-
-//     if (profileType != null && profileType == 'Resident') {
-//         const updatedUser = await User.findOneAndUpdate(
-//             { _id: req.user._id },
-//             {
-//                 $set: {
-//                     phoneNo,
-//                     profileType
-//                 },
-//                 $push: {
-//                     apartments: {
-//                         societyName,
-//                         societyBlock,
-//                         apartment,
-//                         ownership,
-//                         residentStatus: req.user.role === 'admin' ? 'approve' : 'pending'
-//                     }
-//                 }
-//             },
-//             { new: true }
-//         );
-
-//         if (!updatedUser) {
-//             throw new ApiError(500, "Something went wrong");
-//         }
-
-//         const payload = {
-//             userName: updatedUser.userName,
-//             profile: updatedUser.profile,
-//             societyName,
-//             societyBlock,
-//             apartment,
-//             ownership,
-//             action: 'VERIFY_RESIDENT_PROFILE_TYPE'
-//         }
-
-//         if (req.user.role != 'admin') sendNotification(admin.FCMToken, 'VERIFY_RESIDENT_PROFILE_TYPE', JSON.stringify(payload));
-
-//         return res.status(200).json(
-//             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
-//         );
-//     } else {
-//         const updatedUser = await User.findOneAndUpdate(
-//             { _id: req.user._id },
-//             {
-//                 $set: {
-//                     phoneNo,
-//                     profileType
-//                 },
-//                 $push: {
-//                     gate: {
-//                         societyName,
-//                         gateAssign,
-//                         guardStatus: 'pending'
-//                     }
-//                 }
-//             },
-//             { new: true }
-//         );
-
-//         if (!updatedUser) {
-//             throw new ApiError(500, "Something went wrong");
-//         }
-
-//         const payload = {
-//             userName: updatedUser.userName,
-//             profile: updatedUser.profile,
-//             societyName,
-//             gateAssign,
-//             action: 'VERIFY_GUARD_PROFILE_TYPE'
-//         }
-
-//         sendNotification(admin.FCMToken, 'VERIFY_GUARD_PROFILE_TYPE', payload);
-
-//         return res.status(200).json(
-//             new ApiResponse(200, updatedUser, "Exatra details updated successfully")
-//         );
-//     }
-// });
-
 const addExtraInfo = asyncHandler(async (req, res) => {
     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
     const admin = await User.findOne({ role: 'admin' });
@@ -427,12 +393,25 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             societyName,
             societyBlock,
             apartment,
-            ownership,
+            ownership: ownership.toLowerCase(),
             residentStatus: user.role === 'admin' ? 'approve' : 'pending'
         });
 
         if (!residentRequest) {
             throw new ApiError(500, "Something went wrong");
+        }
+
+        if (user.role === 'admin') {
+            const checkInCode = await CheckInCode.create({
+                user: user._id,
+                name: user.userName,
+                mobNumber: user.phoneNo,
+                profileType: 'Resident',
+                societyName: residentRequest.societyName,
+                checkInCode: await generateCheckInCode(residentRequest.societyName),
+                checkInCodeStart: Date.now(),
+                checkInCodeExpiry: null,
+            });
         }
 
         var payload = {
@@ -478,70 +457,18 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         sendNotification(admin.FCMToken, payload.action, JSON.stringify(payload));
     }
 
-    return res.status(200).json(
-        new ApiResponse(200, isUpdate, "Extra details updated successfully")
-    );
-});
-
-const addApartment = asyncHandler(async (req, res) => {
-    const updatedUser = await User.findOneAndUpdate(
-        { _id: req.user._id },
-        {
-            $push: {
-                apartments: req.body
-            }
-        },
-        { new: true }
-    );
-
-    if (!updatedUser) {
-        throw new ApiError(500, "Something went wrong");
-    }
+    const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
+    const society = await ProfileVerification.findOne({ user: req?.user?._id });
 
     return res.status(200).json(
-        new ApiResponse(200, updatedUser, "Society details updated successfully")
-    );
-});
-
-const deleteApartment = asyncHandler(async (req, res) => {
-    const { apartmentId } = req.body;
-
-    const updatedUser = await User.findOneAndUpdate(
-        { _id: req.user._id },
-        {
-            $pull: {
-                apartments: { _id: apartmentId }
-            }
-        },
-        { new: true }
-    );
-
-    if (!updatedUser) {
-        throw new ApiError(500, "Something went wrong");
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, updatedUser, "Apartment deleted successfully")
-    );
-});
-
-const addGate = asyncHandler(async (req, res) => {
-    const updatedUser = await User.findOneAndUpdate(
-        { _id: req.user._id },
-        {
-            $push: {
-                gate: req.body
-            }
-        },
-        { new: true }
-    );
-
-    if (!updatedUser) {
-        throw new ApiError(500, "Something went wrong");
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, updatedUser, "Society details updated successfully")
+        new ApiResponse(200, {
+            ...isUpdate.toObject(),
+            checkInCode: checkInCode ? checkInCode.toObject().checkInCode : null,
+            societyName: society ? society.toObject().societyName : null,
+            societyBlock: society ? society.toObject().societyBlock : null,
+            apartment: society ? society.toObject().apartment : null,
+            profileType: society ? society.toObject().profileType : null
+        }, "Extra details updated successfully")
     );
 });
 
@@ -570,8 +497,5 @@ export {
     refreshAccessToken,
     updateAccountDetails,
     addExtraInfo,
-    addApartment,
-    deleteApartment,
-    addGate,
     updateFCMToken
 };
