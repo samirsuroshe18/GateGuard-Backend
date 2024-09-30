@@ -14,7 +14,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
       return res.render("invalid")
     }
 
-    user.isVerfied = true;
+    user.isVerified = true;
     user.verifyToken = undefined;
     user.verifyTokenExpiry = undefined;
     await user.save()
@@ -84,8 +84,8 @@ const verifyGoogle = asyncHandler(async (req, res) => {
       return res.render("googleLinkInvalid")
     }
 
-    user.isVerfied = true;
-    user.isGoogleVerfied = true;
+    user.isVerified = true;
+    user.isGoogleVerified = true;
     user.googleVerifyToken = undefined;
     user.googleVerifyTokenExpiry = undefined;
     user.verifyToken = undefined;
