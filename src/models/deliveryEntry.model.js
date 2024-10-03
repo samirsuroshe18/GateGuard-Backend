@@ -9,7 +9,22 @@ const societyDetails = new Schema({
         type: [
             {
                 societyBlock: String,
-                apartment: String
+                apartment: String,
+                entryStatus: {
+                    status: {
+                        type: String,
+                        enum: ['pending', 'approve', 'rejected'],
+                        default: 'pending'
+                    },
+                    approvedBy: {
+                        type: Schema.Types.ObjectId,
+                        ref: "User"
+                    },
+                    rejectedBy: {
+                        type: Schema.Types.ObjectId,
+                        ref: "User"
+                    }
+                }
             }
         ],
         default: [],
@@ -61,19 +76,36 @@ const deliveryEntrySchema = new Schema({
         lowercase: true
     },
 
-    residentStatus: {
-        type: String,
-        enum: ['pending', 'rejected', 'approve'],
-        default: 'pending'
-    },
-
     guardStatus: {
-        type: String,
-        enum: ['pending', 'rejected', 'approve'],
-        default: 'pending'
+        status: {
+            type: String,
+            enum: ['pending', 'approve', 'rejected'],
+            default: 'pending'
+        },
+        guard: {
+            type: Schema.Types.ObjectId,
+            ref: "User"
+        },
     },
 
     societyDetails: societyDetails,
+
+    entryTime: {
+        type: Date
+    },
+
+    exitTime: {
+        type: Date
+    },
+
+    notificationId: {
+        type: Number
+    },
+
+    hasExited: {
+        type: Boolean,
+        default: false, // Optional: set a default value
+    },
 
 }, { timestamps: true });
 

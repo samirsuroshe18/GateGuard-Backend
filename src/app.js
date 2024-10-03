@@ -34,6 +34,10 @@ import societyRouter from './routes/society.routes.js';
 import profileVerificationRouter from './routes/profileVerification.routes.js';
 import deliveryEntryRouter from './routes/deliveryEntry.routes.js';
 import checkInRouter from './routes/checkInWithoutCode.routes.js';
+import checkInByCodeRouter from './routes/checkInByCode.routes.js';
+import invitevisitorsRoter from './routes/inviteVisitors.routes.js';
+import exitRouter from './routes/exit.routes.js';
+import waitingRouter from './routes/waiting.routes.js';
 
 
 //Routes declaration
@@ -43,6 +47,10 @@ app.use("/api/v1/society", societyRouter);
 app.use("/api/v1/profile-verification", profileVerificationRouter);
 app.use("/api/v1/delivery-entry", deliveryEntryRouter);
 app.use("/api/v1/check-in", checkInRouter);
+app.use("/api/v1/check-in-by-code", checkInByCodeRouter);
+app.use("/api/v1/invite-visitors", invitevisitorsRoter);
+app.use("/api/v1/exit", exitRouter);
+app.use("/api/v1/waiting", waitingRouter);
 
 // Custom error handeling
 app.use((err, req, res, next) => {

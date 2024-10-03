@@ -4,7 +4,7 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { User } from '../models/user.model.js';
 import mailSender from '../utils/mailSender.js';
 import fs from 'fs';
-import { sendNotification } from '../utils/sendResidentNotification.js';
+import { sendNotification, sendNotificationCancel } from '../utils/sendResidentNotification.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
@@ -88,7 +88,7 @@ const loginUser = asyncHandler(async (req, res) => {
         const mailResponse = await mailSender(email, user._id, "VERIFY");
 
         if (mailResponse) {
-            throw new ApiError(401, "An email sent to your account please verify in 10 minutes");
+            throw new ApiError(310, "Your email is not verified. An email sent to your account please verify in 10 minutes");
         }
     }
 
@@ -203,7 +203,9 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
                 societyName: society ? society.toObject().societyName : null,
                 societyBlock: society ? society.toObject().societyBlock : null,
                 apartment: society ? society.toObject().apartment : null,
-                profileType: society ? society.toObject().profileType : null
+                profileType: society ? society.toObject().profileType : null,
+                residentStatus: society ? society.toObject().residentStatus : null,
+                guardStatus: society ? society.toObject().guardStatus : null,
             },
             accessToken,
             refreshToken
@@ -281,7 +283,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user || !user?.isVerified) {
-        throw new ApiError(404, "Invalid email");
+        throw new ApiError(404, "Invalid email or email is not verified");
     }
 
     const mailResponse = await mailSender(email, user._id, "RESET");
@@ -296,8 +298,8 @@ const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
-    const user = await CheckInCode.findOne({ user: req?.user?._id });
-    const society = await ProfileVerification.findOne({ user: req?.user?._id });
+    const user = await CheckInCode.findOne({ user: req.user._id });
+    const society = await ProfileVerification.findOne({ user: req.user._id });
     return res.status(200).json(
         new ApiResponse(200, {
             ...req.user.toObject(),
@@ -305,7 +307,10 @@ const getCurrentUser = asyncHandler(async (req, res) => {
             societyName: society ? society.toObject().societyName : null,
             societyBlock: society ? society.toObject().societyBlock : null,
             apartment: society ? society.toObject().apartment : null,
-            profileType: society ? society.toObject().profileType : null
+            profileType: society ? society.toObject().profileType : null,
+            residentStatus: society ? society.toObject().residentStatus : null,
+            guardStatus: society ? society.toObject().guardStatus : null,
+            gateAssign: society ? society.toObject().gateAssign : null,
         }, "Current user serched successfully")
     );
 });
@@ -382,6 +387,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const addExtraInfo = asyncHandler(async (req, res) => {
     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
     const admin = await User.findOne({ role: 'admin' });
+    const adminSociety = await ProfileVerification.findOne({ user: admin?._id });
     const user = req.user;
 
     user.phoneNo = phoneNo;
@@ -400,6 +406,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         if (!residentRequest) {
             throw new ApiError(500, "Something went wrong");
         }
+
+        user.userType = 'Resident';
 
         if (user.role === 'admin') {
             const checkInCode = await CheckInCode.create({
@@ -436,6 +444,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
             throw new ApiError(500, "Something went wrong");
         }
 
+        user.userType = 'Security';
+
         var payload = {
             userName: user.userName,
             profile: user.profile,
@@ -453,7 +463,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     }
 
     // Send notification to admin if the user is not an admin
-    if (user.role !== 'admin' && admin && admin.FCMToken) {
+    if (user.role !== 'admin' && admin && admin.FCMToken && adminSociety?.societyName === societyName) {
         sendNotification(admin.FCMToken, payload.action, JSON.stringify(payload));
     }
 
@@ -485,6 +495,11 @@ const updateFCMToken = asyncHandler(async (req, res) => {
     );
 });
 
+const cancelNotification = asyncHandler(async (req, res) => {
+    const { notificationId, memberId } = req.body;
+    sendNotificationCancel(token, notificationId);
+});
+
 export {
     registerUser,
     loginUser,
@@ -497,5 +512,6 @@ export {
     refreshAccessToken,
     updateAccountDetails,
     addExtraInfo,
-    updateFCMToken
+    updateFCMToken,
+    cancelNotification
 };

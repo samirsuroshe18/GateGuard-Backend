@@ -18,5 +18,23 @@ const sendNotification = (token, action, payload) => {
     });
 };
 
+// Function to send a cancel notification (example for FCM)
+function sendNotificationCancel(token, payload) {
+  const message = {
+    data: {
+      action: 'CANCEL',
+      payload: payload,
+    },
+    token: token,
+  };
 
-export { sendNotification }
+  admin.messaging().send(message)
+    .then((response) => {
+      console.log('Cancel notification sent:', response);
+    })
+    .catch((error) => {
+      console.log('Error sending cancel notification:', error);
+    });
+}
+
+export { sendNotification, sendNotificationCancel }

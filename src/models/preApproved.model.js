@@ -23,12 +23,37 @@ const preApprovedSchema = new Schema({
         type: String
     },
 
+    societyName: {
+        type: String
+    },
+
+    blockName: {
+        type: String
+    },
+
+    apartment: {
+        type: String
+    },
+
+    preApproveStartTime: {
+        type: Date
+    },
+
+    preApproveExpiredTime: {
+        type: Date
+    },
+
     entryTime: {
         type: Date
     },
 
     exitTime: {
         type: Date
+    },
+
+    hasExited: {
+        type: Boolean,
+        default: false, // Optional: set a default value
     },
 
 }, { timestamps: true });

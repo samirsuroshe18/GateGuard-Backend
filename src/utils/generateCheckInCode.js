@@ -16,11 +16,19 @@ const generateCheckInCode = async (societyName) => {
             newCode = Math.floor(100000 + Math.random() * 900000).toString();
         } while (checkInCodeOnly.includes(newCode));
 
-        console.log(`newCode : ${newCode}`);
         return newCode;
     } catch (error) {
         throw new ApiError(500, "Something went wrong while generating refresh and access token");
     }
 }
 
-export { generateCheckInCode }
+const generateNotificationId = () => {
+    try {
+        let notificationCode = Math.floor(10000000 + Math.random() * 90000000).toString();
+        return notificationCode;
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating refresh and access token");
+    }
+}
+
+export { generateCheckInCode, generateNotificationId }

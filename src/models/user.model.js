@@ -50,6 +50,16 @@ const userSchema = new Schema({
         default: 'user'
     },
 
+    userType: {
+        type: String,
+        enum: ['Resident', 'Security'],
+    },
+
+    isUserTypeVerified: {
+        type: Boolean,
+        default: false,
+    },
+
     refreshToken: {
         type: String
     },

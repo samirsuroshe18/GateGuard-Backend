@@ -8,11 +8,13 @@ import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import { User } from '../models/user.model.js';
 
 const getPendingResidentRequest = asyncHandler(async (req, res) => {
+    const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
 
     const pendingResidentRequest = await ProfileVerification.aggregate([
         {
             $match: {
-                residentStatus: 'pending'
+                residentStatus: 'pending',
+                societyName: adminSociety.societyName
             }
         },
         {
@@ -72,11 +74,13 @@ const getPendingResidentRequest = asyncHandler(async (req, res) => {
 });
 
 const getPendingSecurityRequest = asyncHandler(async (req, res) => {
-    // const pendingSecurityRequest = await ProfileVerification.find({ guardStatus: "pending" }).select('-__v');
+    const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
+
     const pendingSecurityRequest = await ProfileVerification.aggregate([
         {
             $match: {
-                guardStatus: 'pending'
+                guardStatus: 'pending',
+                societyName: adminSociety.societyName
             }
         },
         {
@@ -134,12 +138,13 @@ const getPendingSecurityRequest = asyncHandler(async (req, res) => {
 });
 
 const verifyResidentRequest = asyncHandler(async (req, res) => {
-    const { residentStatus, user } = req.body;
+    const { residentStatus, user, requestId } = req.body;
     const userId = mongoose.Types.ObjectId.createFromHexString(user);
+    const id = mongoose.Types.ObjectId.createFromHexString(requestId);
     const residentUser = await User.findById(userId);
 
     const requestExists = await ProfileVerification.findOne({
-        user: userId,
+        _id: id,
         residentStatus: 'pending'
     });
 
@@ -149,6 +154,7 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
 
     if (residentStatus === 'approve') {
         requestExists.residentStatus = 'approve';
+        residentUser.isUserTypeVerified = true;
 
         const checkInCode = await CheckInCode.create({
             user: residentUser._id,
@@ -156,7 +162,7 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
             mobNumber: residentUser.phoneNo,
             profileType: 'Resident',
             societyName: requestExists.societyName,
-            checkInCode: generateCheckInCode(requestExists.societyName),
+            checkInCode: await generateCheckInCode(requestExists.societyName),
             checkInCodeStart: Date.now(),
             checkInCodeExpiry: null,
         });
@@ -166,8 +172,13 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
     }
 
     const isUpdate = await requestExists.save({ validateBeforeSave: false });
+    const isUpdateUser = await residentUser.save({ validateBeforeSave: false });
 
     if (!isUpdate) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    if (!isUpdateUser) {
         throw new ApiError(500, "Something went wrong");
     }
 
@@ -177,11 +188,14 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
 });
 
 const verifySecurityRequest = asyncHandler(async (req, res) => {
-    const { guardStatus, user } = req.body;
+    const { guardStatus, user, requestId } = req.body;
+    console.log(`${guardStatus} ${user} ${requestId}`)
     const userId = mongoose.Types.ObjectId.createFromHexString(user);
+    const id = mongoose.Types.ObjectId.createFromHexString(requestId);
+    const residentUser = await User.findById(userId);
 
     const requestExists = await ProfileVerification.findOne({
-        user: userId,
+        _id: id,
         guardStatus: 'pending'
     });
 
@@ -191,13 +205,30 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
 
     if (guardStatus === 'approve') {
         requestExists.guardStatus = 'approve'
+        residentUser.isUserTypeVerified = true;
+
+        const checkInCode = await CheckInCode.create({
+            user: residentUser._id,
+            name: residentUser.userName,
+            mobNumber: residentUser.phoneNo,
+            profileType: 'Security',
+            societyName: requestExists.societyName,
+            checkInCode: await generateCheckInCode(requestExists.societyName),
+            checkInCodeStart: Date.now(),
+            checkInCodeExpiry: null,
+        });
     } else {
         requestExists.guardStatus = 'rejected'
     }
 
     const isUpdate = await requestExists.save({ validateBeforeSave: false });
+    const isUpdateUser = await residentUser.save({ validateBeforeSave: false });
 
     if (!isUpdate) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    if (!isUpdateUser) {
         throw new ApiError(500, "Something went wrong");
     }
 
@@ -206,9 +237,52 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
     );
 });
 
+const makeAdmin = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        throw new ApiError(401, "Invalid email");
+    }
+
+    user.role = 'admin'
+    await user.save({ validateBeforeSave: false })
+
+    const requestExists = await ProfileVerification.findOne({ user: user._id });
+
+    if (!requestExists) {
+        throw new ApiError(500, "user does not exists");
+    }
+
+    requestExists.residentStatus = 'approve';
+    user.isUserTypeVerified = true;
+    await requestExists.save({ validateBeforeSave: false });
+    await user.save({ validateBeforeSave: false });
+
+    const checkInCode = await CheckInCode.create({
+        user: user._id,
+        name: user.userName,
+        mobNumber: user.phoneNo,
+        profileType: 'Resident',
+        societyName: requestExists.societyName,
+        checkInCode: await generateCheckInCode(requestExists.societyName),
+        checkInCodeStart: Date.now(),
+        checkInCodeExpiry: null,
+    });
+
+    if (!checkInCode) {
+        throw new ApiError(500, "something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Admin created successfully")
+    );
+});
+
 export {
     getPendingResidentRequest,
     getPendingSecurityRequest,
     verifyResidentRequest,
-    verifySecurityRequest
+    verifySecurityRequest,
+    makeAdmin
 }

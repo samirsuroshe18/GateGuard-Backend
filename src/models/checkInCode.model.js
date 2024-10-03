@@ -39,9 +39,10 @@ const checkInCodeSchema = new Schema({
         type: Date
     },
 
-    isIn: {
-        type: String
-    }
+    isPreApproved: {
+        type: Boolean,
+        default: false, // Optional: set a default value
+    },
 
 }, { timestamps: true });
 

@@ -3,32 +3,22 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
+import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 
-const preApproval = asyncHandler(async (req, res) => {
+const addPreApproval = asyncHandler(async (req, res) => {
     const { name, mobNumber, profileType, checkInCodeStart, checkInCodeExpiry } = req.body;
     const user = await ProfileVerification.findOne({ user: req.user._id });
     const societyName = user.societyName;
-    const checkInCode = await CheckInCode.find({
-        societyName,
-        checkInCodeStart: { $lt: Date.now() },
-        checkInCodeExpiry: { $gt: Date.now() }
-    });
-    const checkInCodeOnly = checkInCode.map(doc => doc.checkInCode);
-
-    let newCode;
-    do {
-        newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    } while (checkInCodeOnly.includes(newCode));
 
     const preApprovalEntry = await CheckInCode.create({
+        approvedBy: req.user._id,
         name: name,
         mobNumber: mobNumber,
         profileType: profileType,
         societyName: societyName,
-        checkInCode: generateCheckInCode(societyName),
-        checkInCodeStart: checkInCodeStart,
-        checkInCodeExpiry: checkInCodeExpiry,
-        isIn: 'pending'
+        checkInCode: await generateCheckInCode(societyName),
+        checkInCodeStart: new Date(checkInCodeStart),
+        checkInCodeExpiry: new Date(checkInCodeExpiry),
     });
 
     if (!preApprovalEntry) {
@@ -81,7 +71,7 @@ const getExpectedEntry = asyncHandler(async (req, res) => {
 });
 
 export {
-    preApproval,
+    addPreApproval,
     reSchedule,
     getExpectedEntry
 }
