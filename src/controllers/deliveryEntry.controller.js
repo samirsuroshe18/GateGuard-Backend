@@ -235,7 +235,8 @@ const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
     const deliveryEntry = await DeliveryEntry.find({
         'societyDetails.societyName': society.societyName,
         'guardStatus.guard': req.user._id,
-        'guardStatus.status': 'approve'
+        'guardStatus.status': 'approve',
+        hasExited: false
     });
 
     if (deliveryEntry.length <= 0) {
@@ -527,6 +528,28 @@ const denyDeliveryBySecurity = asyncHandler(async (req, res) => {
     );
 });
 
+const exitEntry = asyncHandler(async (req, res) => {
+    const { id } = req.body;
+    const deliveryId = mongoose.Types.ObjectId.createFromHexString(id);
+    const delivery = await DeliveryEntry.findById(deliveryId);
+
+    if (!delivery) {
+        throw new ApiError(500, "Invalid id");
+    }
+
+    delivery.hasExited = true;
+    delivery.exitTime = new Date();
+    const result = await delivery.save({ validateBeforeSave: false });
+
+    if (!result) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Delivery exited successfully.")
+    );
+})
+
 function getEntryStatus(data, societyBlock, apartment) {
     const apartments = data.societyDetails.societyApartments;
     const targetApartment = apartments.find(
@@ -550,5 +573,6 @@ export {
     getDeliveryApprovalEntries,
     allowDeliveryBySecurity,
     denyDeliveryBySecurity,
-    getDeliveryAllowedEntries
+    getDeliveryAllowedEntries,
+    exitEntry
 }
