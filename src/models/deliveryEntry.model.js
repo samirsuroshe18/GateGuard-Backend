@@ -17,12 +17,22 @@ const societyDetails = new Schema({
                         default: 'pending'
                     },
                     approvedBy: {
-                        type: Schema.Types.ObjectId,
-                        ref: "User"
+                        userId: {
+                            type: Schema.Types.ObjectId,
+                            ref: "User"
+                        },
+                        name: {
+                            type: String
+                        }
                     },
                     rejectedBy: {
-                        type: Schema.Types.ObjectId,
-                        ref: "User"
+                        userId: {
+                            type: Schema.Types.ObjectId,
+                            ref: "User"
+                        },
+                        name: {
+                            type: String
+                        }
                     }
                 }
             }
@@ -83,8 +93,13 @@ const deliveryEntrySchema = new Schema({
             default: 'pending'
         },
         guard: {
-            type: Schema.Types.ObjectId,
-            ref: "User"
+            userId: {
+                type: Schema.Types.ObjectId,
+                ref: "User"
+            },
+            name: {
+                type: String
+            }
         },
     },
 

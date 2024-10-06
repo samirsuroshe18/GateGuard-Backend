@@ -416,9 +416,13 @@ const addExtraInfo = asyncHandler(async (req, res) => {
                 mobNumber: user.phoneNo,
                 profileType: 'Resident',
                 societyName: residentRequest.societyName,
+                blockName: residentRequest.societyBlock,
+                apartment: residentRequest.apartment,
                 checkInCode: await generateCheckInCode(residentRequest.societyName),
                 checkInCodeStart: Date.now(),
                 checkInCodeExpiry: null,
+                checkInCodeStartDate: Date.now(),
+                checkInCodeExpiryDate: null
             });
         }
 

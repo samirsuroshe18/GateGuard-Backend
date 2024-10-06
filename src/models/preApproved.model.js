@@ -11,6 +11,10 @@ const preApprovedSchema = new Schema({
         ref: "User"
     },
 
+    profileImg: {
+        type: String
+    },
+
     name: {
         type: String
     },
@@ -33,14 +37,6 @@ const preApprovedSchema = new Schema({
 
     apartment: {
         type: String
-    },
-
-    preApproveStartTime: {
-        type: Date
-    },
-
-    preApproveExpiredTime: {
-        type: Date
     },
 
     entryTime: {

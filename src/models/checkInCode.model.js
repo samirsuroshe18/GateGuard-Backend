@@ -23,12 +23,32 @@ const checkInCodeSchema = new Schema({
         type: String
     },
 
+    blockName: {
+        type: String
+    },
+
+    apartment: {
+        type: String
+    },
+
     checkInCode: {
         type: String
     },
 
     profileType: {
         type: String
+    },
+
+    vehicleNo: {
+        type: String
+    },
+
+    checkInCodeStartDate: {
+        type: Date
+    },
+
+    checkInCodeExpiryDate: {
+        type: Date
     },
 
     checkInCodeStart: {

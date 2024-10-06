@@ -162,9 +162,13 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
             mobNumber: residentUser.phoneNo,
             profileType: 'Resident',
             societyName: requestExists.societyName,
+            blockName: requestExists.societyBlock,
+            apartment: requestExists.apartment,
             checkInCode: await generateCheckInCode(requestExists.societyName),
             checkInCodeStart: Date.now(),
             checkInCodeExpiry: null,
+            checkInCodeStartDate: Date.now(),
+            checkInCodeExpiryDate: null
         });
 
     } else {
@@ -213,9 +217,13 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
             mobNumber: residentUser.phoneNo,
             profileType: 'Security',
             societyName: requestExists.societyName,
+            blockName: requestExists.societyBlock,
+            apartment: requestExists.apartment,
             checkInCode: await generateCheckInCode(requestExists.societyName),
             checkInCodeStart: Date.now(),
             checkInCodeExpiry: null,
+            checkInCodeStartDate: Date.now(),
+            checkInCodeExpiryDate: null,
         });
     } else {
         requestExists.guardStatus = 'rejected'
@@ -265,9 +273,13 @@ const makeAdmin = asyncHandler(async (req, res) => {
         mobNumber: user.phoneNo,
         profileType: 'Resident',
         societyName: requestExists.societyName,
+        blockName: requestExists.societyBlock,
+        apartment: requestExists.apartment,
         checkInCode: await generateCheckInCode(requestExists.societyName),
         checkInCodeStart: Date.now(),
         checkInCodeExpiry: null,
+        checkInCodeStartDate: Date.now(),
+        checkInCodeExpiryDate: null,
     });
 
     if (!checkInCode) {

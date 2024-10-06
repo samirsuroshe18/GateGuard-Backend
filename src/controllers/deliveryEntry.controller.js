@@ -10,15 +10,13 @@ import { generateNotificationId } from '../utils/generateCheckInCode.js';
 
 const addDeliveryEntry = asyncHandler(async (req, res) => {
     const { name, mobNumber, vehicleDetails, entryType, societyDetails, companyName, companyLogo } = req.body;
-    // https://smartdwelliot.in/GateGuard-Backend/public/images/1a0791e9-2f0c-45bb-a2a4-7315f7b364ee1433771436668799733-1727464985071.jpg
     const profileImg = `${process.env.SMARTDWELL_DOMAIN}${req.file.filename}`;
-    // const profileImg = `${process.env.DOMAIN}/images/${req.file.filename}`;
 
     const profile = await ProfileVerification.aggregate([
         {
             $match: {
                 residentStatus: 'approve',
-                societyName: JSON.parse(societyDetails).societyName, // Replace with actual society name
+                societyName: JSON.parse(societyDetails).societyName,
                 $or: JSON.parse(societyDetails).societyApartments
             }
         },
@@ -48,10 +46,9 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
             }
         },
         {
-            // Unwind the user array so that we only get the user object, not an array
             $unwind: {
                 path: "$user",
-                preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
+                preserveNullAndEmptyArrays: true
             }
         },
         {
@@ -62,7 +59,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
     ]);
 
     if (profile.length <= 0) {
-        throw new ApiError(500, "No resident found");
+        throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
     const deliveryEntry = await DeliveryEntry.create({
@@ -76,7 +73,10 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         companyLogo,
         notificationId: generateNotificationId(),
         guardStatus: {
-            guard: req.user._id
+            guard: {
+                userId: req.user._id,
+                name: req.user.userName
+            }
         },
     });
 
@@ -115,7 +115,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         {
             $match: {
                 residentStatus: 'approve',
-                societyName: societyDetails.societyName, // Replace with actual society name
+                societyName: societyDetails.societyName,
                 $or: societyDetails.societyApartments
             }
         },
@@ -145,10 +145,9 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
             }
         },
         {
-            // Unwind the user array so that we only get the user object, not an array
             $unwind: {
                 path: "$user",
-                preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
+                preserveNullAndEmptyArrays: true
             }
         },
         {
@@ -159,7 +158,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
     ]);
 
     if (profile.length <= 0) {
-        throw new ApiError(500, "No resident found");
+        throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
     const deliveryEntry = await DeliveryEntry.create({
@@ -173,7 +172,10 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         companyLogo,
         notificationId: generateNotificationId(),
         guardStatus: {
-            guard: req.user._id
+            guard: {
+                userId: req.user._id,
+                name: req.user.userName
+            }
         },
     });
 
@@ -205,7 +207,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
     );
 });
 
-const getDeliveryApprovalEntries = asyncHandler(async (req, res) => {
+const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
     const society = await ProfileVerification.findOne({ user: req.user._id });
     if (!society) {
         throw new ApiError(500, "No resident found");
@@ -213,16 +215,39 @@ const getDeliveryApprovalEntries = asyncHandler(async (req, res) => {
 
     const deliveryEntry = await DeliveryEntry.find({
         'societyDetails.societyName': society.societyName,
-        'guardStatus.guard': req.user._id,
+        'guardStatus.guard.userId': req.user._id,
         'guardStatus.status': 'pending'
     });
 
     if (deliveryEntry.length <= 0) {
+        throw new ApiError(500, "There is no waiting requests.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, deliveryEntry, "Delivery waiting request fetched successfully.")
+    );
+});
+
+const getDeliveryServiceRequest = asyncHandler(async (req, res) => {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+
+    const result = await DeliveryEntry.findOne({
+        'societyDetails.societyName': user.societyName,
+        'societyDetails.societyApartments': {
+            $elemMatch: {
+                societyBlock: user.societyBlock,
+                apartment: user.apartment,
+                'entryStatus.status': 'pending'
+            }
+        }
+    });
+
+    if (!result) {
         throw new ApiError(500, "No entry is arrived");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, deliveryEntry, "Delivery Approval request send successfully.")
+        new ApiResponse(200, result, "You got an entry")
     );
 });
 
@@ -234,7 +259,6 @@ const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
 
     const deliveryEntry = await DeliveryEntry.find({
         'societyDetails.societyName': society.societyName,
-        'guardStatus.guard': req.user._id,
         'guardStatus.status': 'approve',
         hasExited: false
     });
@@ -290,10 +314,9 @@ const approveDelivery = asyncHandler(async (req, res) => {
             }
         },
         {
-            // Unwind the user array so that we only get the user object, not an array
             $unwind: {
                 path: "$user",
-                preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
+                preserveNullAndEmptyArrays: true
             }
         },
         {
@@ -323,7 +346,8 @@ const approveDelivery = asyncHandler(async (req, res) => {
         {
             $set: {
                 "societyDetails.societyApartments.$[elem].entryStatus.status": "approve",
-                "societyDetails.societyApartments.$[elem].entryStatus.approvedBy": req.user._id
+                "societyDetails.societyApartments.$[elem].entryStatus.approvedBy.userId": req.user._id,
+                "societyDetails.societyApartments.$[elem].entryStatus.approvedBy.name": req.user.userName
             }
         },
         {
@@ -435,7 +459,9 @@ const rejectDelivery = asyncHandler(async (req, res) => {
         {
             $set: {
                 "societyDetails.societyApartments.$[elem].entryStatus.status": "rejected",
-                "societyDetails.societyApartments.$[elem].entryStatus.rejectedBy": req.user._id
+                "societyDetails.societyApartments.$[elem].entryStatus.rejectedBy.userId": req.user._id,
+                "societyDetails.societyApartments.$[elem].entryStatus.rejectedBy.name": req.user.userName,
+                exitTime: new Date()
             }
         },
         {
@@ -489,6 +515,8 @@ const allowDeliveryBySecurity = asyncHandler(async (req, res) => {
     }
 
     delivery.guardStatus.status = 'approve';
+    delivery.guardStatus.guard.userId = req.user._id;
+    delivery.guardStatus.guard.name = req.user.userName;
     delivery.entryTime = new Date();
     const result = await delivery.save({ validateBeforeSave: false });
 
@@ -517,6 +545,8 @@ const denyDeliveryBySecurity = asyncHandler(async (req, res) => {
     }
 
     delivery.guardStatus.status = 'rejected';
+    delivery.guardStatus.guard.userId = req.user._id;
+    delivery.guardStatus.guard.name = req.user.userName;
     const result = await delivery.save({ validateBeforeSave: false });
 
     if (!result) {
@@ -548,7 +578,183 @@ const exitEntry = asyncHandler(async (req, res) => {
     return res.status(200).json(
         new ApiResponse(200, {}, "Delivery exited successfully.")
     );
-})
+});
+
+//For Residents
+
+const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+    if (!user) {
+        throw new ApiError(500, "No resident found");
+    }
+
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                "societyDetails.societyName": user.societyName,
+                'guardStatus.status': 'approve',  // Condition for guard status
+                hasExited: false,                 // Condition for exit status
+            },
+        },
+        {
+            $project: {
+                // Include all fields of the document
+                _id: 1,  // or just exclude fields you don't want to show
+                guardStatus: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+                notificationId: 1,
+                societyDetails: {
+                    societyName: "$societyDetails.societyName",
+                    societyApartments: {
+                        $filter: {
+                            input: "$societyDetails.societyApartments",
+                            as: "apartment",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$apartment.societyBlock", user.societyBlock] },
+                                    { $eq: ["$$apartment.apartment", user.apartment] },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    ]);
+
+
+    if (deliveryEntry.length <= 0) {
+        throw new ApiError(500, "There is no entry");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, deliveryEntry, "Current entries fetched successfully.")
+    );
+});
+
+const getPastDeliveryEntries = asyncHandler(async (req, res) => {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                "societyDetails.societyName": user.societyName,
+                'guardStatus.status': 'approve',
+                hasExited: true,
+            },
+        },
+        {
+            $project: {
+                _id: 1,
+                guardStatus: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+                notificationId: 1,
+                societyDetails: {
+                    societyName: "$societyDetails.societyName",
+                    societyApartments: {
+                        $filter: {
+                            input: "$societyDetails.societyApartments",
+                            as: "apartment",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$apartment.societyBlock", user.societyBlock] },
+                                    { $eq: ["$$apartment.apartment", user.apartment] },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    ]);
+
+    if (deliveryEntry.length <= 0) {
+        throw new ApiError(500, "There is no entry");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, deliveryEntry, "Past entries fetched successfully.")
+    );
+});
+
+const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                'societyDetails.societyName': user.societyName,
+                'societyDetails.societyApartments': {
+                    $elemMatch: {
+                        societyBlock: user.societyBlock,
+                        apartment: user.apartment,
+                        'entryStatus.status': 'rejected'
+                    }
+                },
+            },
+        },
+        {
+            $project: {
+                _id: 1,
+                guardStatus: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+                notificationId: 1,
+                societyDetails: {
+                    societyName: 1,
+                    societyApartments: {
+                        $filter: {
+                            input: "$societyDetails.societyApartments",
+                            as: "apartment",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$apartment.societyBlock", user.societyBlock] },
+                                    { $eq: ["$$apartment.apartment", user.apartment] },
+                                    { $eq: ["$$apartment.entryStatus.status", 'rejected'] },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    ]);
+
+
+    if (deliveryEntry.length <= 0) {
+        throw new ApiError(500, "There is no entry");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, deliveryEntry, "Denied entries fetched successfully.")
+    );
+});
 
 function getEntryStatus(data, societyBlock, apartment) {
     const apartments = data.societyDetails.societyApartments;
@@ -570,9 +776,13 @@ export {
     addDeliveryEntryStringImg,
     approveDelivery,
     rejectDelivery,
-    getDeliveryApprovalEntries,
+    waitingForResidentApprovalEntries,
     allowDeliveryBySecurity,
     denyDeliveryBySecurity,
     getDeliveryAllowedEntries,
-    exitEntry
+    exitEntry,
+    getDeliveryServiceRequest,
+    getCurrentDeliveryEntries,
+    getPastDeliveryEntries,
+    getDeniedDeliveryEntries,
 }
