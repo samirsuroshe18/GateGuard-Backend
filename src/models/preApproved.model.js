@@ -2,41 +2,99 @@ import mongoose, { Schema } from "mongoose";
 
 const preApprovedSchema = new Schema({
     approvedBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User"
+        user: {
+            type: Schema.Types.ObjectId,
+            ref: "User"
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'approve', 'rejected'],
+            default: 'approve'
+        }
     },
 
     allowedBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User"
+        user: {
+            type: Schema.Types.ObjectId,
+            ref: "User"
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'approve', 'rejected'],
+            default: 'approve'
+        }
+    },
+
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+
+    mobNumber: {
+        type: String,
+        required: true,
+        trim: true,
     },
 
     profileImg: {
         type: String
     },
 
-    name: {
-        type: String
+    companyName: {
+        type: String,
+        trim: true,
     },
 
-    mobNumber: {
-        type: String
+    companyLogo: {
+        type: String,
+    },
+
+    serviceName: {
+        type: String,
+        trim: true,
+    },
+
+    serviceLogo: {
+        type: String,
+    },
+
+    vehicleDetails: {
+        type: {
+            vehicleType: String,
+            vehicleNumber: String
+        }
     },
 
     profileType: {
-        type: String
+        type: String,
+        trim: true,
+    },
+
+    entryType: {
+        type: String,
+        trim: true,
+        lowercase: true
     },
 
     societyName: {
-        type: String
+        type: String,
+        trim: true,
     },
 
     blockName: {
-        type: String
+        type: String,
+        trim: true,
     },
 
     apartment: {
-        type: String
+        type: String,
+        trim: true,
+    },
+
+    gateName: {
+        type: String,
+        trim: true,
     },
 
     entryTime: {
@@ -49,7 +107,7 @@ const preApprovedSchema = new Schema({
 
     hasExited: {
         type: Boolean,
-        default: false, // Optional: set a default value
+        default: false,
     },
 
 }, { timestamps: true });

@@ -10,6 +10,10 @@ import { User } from '../models/user.model.js';
 const getPendingResidentRequest = asyncHandler(async (req, res) => {
     const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
 
+    if (adminSociety) {
+        throw new ApiError(404, "Profile is not found");
+    }
+
     const pendingResidentRequest = await ProfileVerification.aggregate([
         {
             $match: {
@@ -75,6 +79,10 @@ const getPendingResidentRequest = asyncHandler(async (req, res) => {
 
 const getPendingSecurityRequest = asyncHandler(async (req, res) => {
     const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
+
+    if (adminSociety) {
+        throw new ApiError(404, "Profile is not found");
+    }
 
     const pendingSecurityRequest = await ProfileVerification.aggregate([
         {
@@ -165,9 +173,9 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
             blockName: requestExists.societyBlock,
             apartment: requestExists.apartment,
             checkInCode: await generateCheckInCode(requestExists.societyName),
-            checkInCodeStart: Date.now(),
+            checkInCodeStart: new Date(),
             checkInCodeExpiry: null,
-            checkInCodeStartDate: Date.now(),
+            checkInCodeStartDate: new Date(),
             checkInCodeExpiryDate: null
         });
 
@@ -193,7 +201,6 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
 
 const verifySecurityRequest = asyncHandler(async (req, res) => {
     const { guardStatus, user, requestId } = req.body;
-    console.log(`${guardStatus} ${user} ${requestId}`)
     const userId = mongoose.Types.ObjectId.createFromHexString(user);
     const id = mongoose.Types.ObjectId.createFromHexString(requestId);
     const residentUser = await User.findById(userId);
@@ -220,9 +227,9 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
             blockName: requestExists.societyBlock,
             apartment: requestExists.apartment,
             checkInCode: await generateCheckInCode(requestExists.societyName),
-            checkInCodeStart: Date.now(),
+            checkInCodeStart: new Date(),
             checkInCodeExpiry: null,
-            checkInCodeStartDate: Date.now(),
+            checkInCodeStartDate: new Date(),
             checkInCodeExpiryDate: null,
         });
     } else {
@@ -276,9 +283,9 @@ const makeAdmin = asyncHandler(async (req, res) => {
         blockName: requestExists.societyBlock,
         apartment: requestExists.apartment,
         checkInCode: await generateCheckInCode(requestExists.societyName),
-        checkInCodeStart: Date.now(),
+        checkInCodeStart: new Date(),
         checkInCodeExpiry: null,
-        checkInCodeStartDate: Date.now(),
+        checkInCodeStartDate: new Date(),
         checkInCodeExpiryDate: null,
     });
 

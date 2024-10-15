@@ -10,6 +10,10 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
     const { checkInCode } = req.body;
     const security = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
 
+    if (!security) {
+        throw new ApiError(500, `You are not security guard`);
+    }
+
     const checkInCodeEarly = await CheckInCode.findOne({
         checkInCode,
         societyName: security.societyName,
@@ -36,20 +40,31 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
     }
 
     const msg = compareTime(checkInCodeExist.checkInCodeStart, checkInCodeExist.checkInCodeExpiry);
+
     if (msg) {
         throw new ApiError(500, msg);
     }
 
-    checkInCodeExist.isPreApproved = true;
+    checkInCodeExist.isPreApproved = false;
     await checkInCodeExist.save({ validateBeforeSave: false });
 
     const checkInCodeEntry = await PreApproved.create({
+        'approvedBy.user': checkInCodeExist.approvedBy,
+        'allowedBy.user': req.user._id,
         name: checkInCodeExist.name,
         mobNumber: checkInCodeExist.mobNumber,
-        profileType: checkInCodeExist.profileType,
-        approvedBy: checkInCodeExist.approvedBy,
-        allowedBy: req.user._id,
-        entryTime: Date.now(),
+        profileImg: checkInCodeExist.profileImg,
+        companyName: checkInCodeExist.companyName,
+        companyLogo: checkInCodeExist.companyLogo,
+        serviceName: checkInCodeExist.serviceName,
+        serviceLogo: checkInCodeExist.serviceLogo,
+        'vehicleDetails.vehicleNumber': checkInCodeExist.vehicleNo,
+        entryType: checkInCodeExist.entryType,
+        societyName: checkInCodeExist.societyName,
+        blockName: checkInCodeExist.blockName,
+        apartment: checkInCodeExist.apartment,
+        gateName: security.gateAssign,
+        entryTime: new Date(),
     });
 
     if (!checkInCodeEntry) {
@@ -62,7 +77,6 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
 });
 
 function compareTime(startTime, endTime) {
-    // Extract current time in seconds
     const now = new Date();
     const current = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 

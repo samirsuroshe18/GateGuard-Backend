@@ -7,10 +7,11 @@ import { sendNotification, sendNotificationCancel } from '../utils/sendResidentN
 import { User } from '../models/user.model.js';
 import mongoose from 'mongoose'
 import { generateNotificationId } from '../utils/generateCheckInCode.js';
+import { PreApproved } from '../models/preApproved.model.js';
 
 const addDeliveryEntry = asyncHandler(async (req, res) => {
-    const { name, mobNumber, vehicleDetails, entryType, societyDetails, companyName, companyLogo } = req.body;
-    const profileImg = `${process.env.SMARTDWELL_DOMAIN}${req.file.filename}`;
+    const { name, mobNumber, companyName, companyLogo, serviceName, serviceLogo, accompanyingGuest, vehicleDetails, entryType, societyDetails } = req.body;
+    const profileImg = `${process.env.IMAGE_DOMAIN}${req.file.filename}`;
 
     const profile = await ProfileVerification.aggregate([
         {
@@ -66,17 +67,17 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         name,
         mobNumber,
         profileImg,
-        vehicleDetails: JSON.parse(vehicleDetails),
-        entryType,
-        societyDetails: JSON.parse(societyDetails),
         companyName,
         companyLogo,
+        serviceName,
+        serviceLogo,
+        accompanyingGuest,
+        entryType,
+        vehicleDetails: JSON.parse(vehicleDetails),
+        societyDetails: JSON.parse(societyDetails),
         notificationId: generateNotificationId(),
         guardStatus: {
-            guard: {
-                userId: req.user._id,
-                name: req.user.userName
-            }
+            guard: req.user._id,
         },
     });
 
@@ -87,19 +88,25 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
     }
 
     const FCMTokens = profile.map((item) => item.user.FCMToken);
+
     var payload = {
         id: createddeliveryEntry._id,
         name,
         mobNumber,
         profileImg,
-        entryType,
         companyName,
         companyLogo,
+        serviceName,
+        serviceLogo,
+        accompanyingGuest,
+        entryType,
+        vehicleDetails,
+        societyDetails,
         notificationId: createddeliveryEntry.notificationId,
         action: 'VERIFY_DELIVERY_ENTRY'
     };
 
-    FCMTokens.forEach(token => {
+    FCMTokens.forEach((token) => {
         sendNotification(token, payload.action, JSON.stringify(payload));
     });
 
@@ -109,7 +116,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
 });
 
 const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
-    const { name, mobNumber, profileImg, vehicleDetails, entryType, societyDetails, companyName, companyLogo } = req.body;
+    const { name, mobNumber, profileImg, companyName, companyLogo, serviceName, serviceLogo, accompanyingGuest, vehicleDetails, entryType, societyDetails } = req.body;
 
     const profile = await ProfileVerification.aggregate([
         {
@@ -165,17 +172,17 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         name,
         mobNumber,
         profileImg,
-        vehicleDetails,
-        entryType,
-        societyDetails,
         companyName,
         companyLogo,
+        serviceName,
+        serviceLogo,
+        accompanyingGuest,
+        entryType,
+        vehicleDetails,
+        societyDetails,
         notificationId: generateNotificationId(),
         guardStatus: {
-            guard: {
-                userId: req.user._id,
-                name: req.user.userName
-            }
+            guard: req.user._id,
         },
     });
 
@@ -186,19 +193,25 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
     }
 
     const FCMTokens = profile.map((item) => item.user.FCMToken);
+
     var payload = {
         id: createddeliveryEntry._id,
         name,
         mobNumber,
         profileImg,
-        entryType,
         companyName,
         companyLogo,
+        serviceName,
+        serviceLogo,
+        accompanyingGuest,
+        entryType,
+        vehicleDetails,
+        societyDetails,
         notificationId: createddeliveryEntry.notificationId,
         action: 'VERIFY_DELIVERY_ENTRY'
     };
 
-    FCMTokens.forEach(token => {
+    FCMTokens.forEach((token) => {
         sendNotification(token, payload.action, JSON.stringify(payload));
     });
 
@@ -208,16 +221,158 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
 });
 
 const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
-    const society = await ProfileVerification.findOne({ user: req.user._id });
+    const society = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
+
     if (!society) {
-        throw new ApiError(500, "No resident found");
+        throw new ApiError(500, "You are not security guard");
     }
 
-    const deliveryEntry = await DeliveryEntry.find({
-        'societyDetails.societyName': society.societyName,
-        'guardStatus.guard.userId': req.user._id,
-        'guardStatus.status': 'pending'
-    });
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                'societyDetails.societyName': society.societyName,
+                'guardStatus.guard': req.user._id,
+                'guardStatus.status': 'pending'
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
+            }
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Rebuild societyApartments array
+        {
+            $group: {
+                _id: {
+                    id: "$_id", // group by document ID
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" }
+            }
+        },
+        // Rebuild societyDetails field
+        {
+            $project: {
+                _id: "$_id.id",
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
+            }
+        }
+    ]);
 
     if (deliveryEntry.length <= 0) {
         throw new ApiError(500, "There is no waiting requests.");
@@ -231,59 +386,479 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
 const getDeliveryServiceRequest = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
-    const result = await DeliveryEntry.findOne({
-        'societyDetails.societyName': user.societyName,
-        'societyDetails.societyApartments': {
-            $elemMatch: {
-                societyBlock: user.societyBlock,
-                apartment: user.apartment,
-                'entryStatus.status': 'pending'
+    const result = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                "societyDetails.societyName": user.societyName,
+                'societyDetails.societyApartments': {
+                    $elemMatch: {
+                        societyBlock: user.societyBlock,
+                        apartment: user.apartment,
+                        'entryStatus.status': 'pending'
+                    }
+                },
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
             }
-        }
-    });
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Rebuild societyApartments array
+        {
+            $group: {
+                _id: {
+                    id: "$_id", // group by document ID
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" }
+            }
+        },
+        // Rebuild societyDetails field
+        {
+            $project: {
+                _id: "$_id.id",
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1
+            }
+        },
+        {
+            $project: {
+                _id: 1,
+                guardStatus: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+                notificationId: 1,
+                societyDetails: {
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates",
+                    societyApartments: {
+                        $filter: {
+                            input: "$societyDetails.societyApartments",
+                            as: "apartment",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$apartment.societyBlock", user.societyBlock] },
+                                    { $eq: ["$$apartment.apartment", user.apartment] },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    ]);
 
-    if (!result) {
+    if (result.length <= 0) {
         throw new ApiError(500, "No entry is arrived");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, result, "You got an entry")
+        new ApiResponse(200, result[0], "You got an entry")
     );
 });
 
 const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
-    const society = await ProfileVerification.findOne({ user: req.user._id });
-    if (!society) {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+
+    if (!user) {
         throw new ApiError(500, "No resident found");
     }
 
-    const deliveryEntry = await DeliveryEntry.find({
-        'societyDetails.societyName': society.societyName,
-        'guardStatus.status': 'approve',
-        hasExited: false
-    });
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                "societyDetails.societyName": user.societyName,
+                'guardStatus.status': 'approve',
+                hasExited: false,
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
+            }
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Rebuild societyApartments array
+        {
+            $group: {
+                _id: {
+                    id: "$_id", // group by document ID
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" }
+            }
+        },
+        // Rebuild societyDetails field
+        {
+            $project: {
+                _id: "$_id.id",
+                guardStatus: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+                notificationId: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
+            },
+        },
+    ]);
 
-    if (deliveryEntry.length <= 0) {
+    const preApprovedEntry = await PreApproved.aggregate([
+        {
+            $match: {
+                'allowedBy.status': 'approve',
+                hasExited: false,
+                societyName: user.societyName,
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$allowedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "allowedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$allowedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                allowedBy: 1,
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                profileType: 1,
+                entryType: 1,
+                societyName: 1,
+                blockName: 1,
+                apartment: 1,
+                gateName: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+            },
+        },
+    ]);
+
+    const response = [...deliveryEntry, ...preApprovedEntry];
+
+    if (response.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, deliveryEntry, "Allowed delivery fetched successfully.")
+        new ApiResponse(200, response, "Allowed delivery fetched successfully.")
     );
 });
 
 const approveDelivery = asyncHandler(async (req, res) => {
     const { id } = req.body;
+    const user = await User.findById(req.user._id);
     const deliveryId = mongoose.Types.ObjectId.createFromHexString(id);
     const delivery = await DeliveryEntry.findById(deliveryId);
-    const user = await User.findById(req.user._id);
+
+    if (!delivery) {
+        throw new ApiError(500, "Invalid id");
+    }
+
     const society = await ProfileVerification.findOne({ user: req.user._id });
+
+    if (!society) {
+        throw new ApiError(500, "Invalid user");
+    }
 
     const profile = await ProfileVerification.aggregate([
         {
             $match: {
                 residentStatus: 'approve',
-                societyName: society.societyName, // Replace with actual society name
+                societyName: society.societyName,
                 societyBlock: society.societyBlock,
                 apartment: society.apartment
             }
@@ -326,10 +901,6 @@ const approveDelivery = asyncHandler(async (req, res) => {
         }
     ]);
 
-    if (!delivery) {
-        throw new ApiError(500, "Invalid id");
-    }
-
     const status = getEntryStatus(delivery.toObject(), society.societyBlock, society.apartment)
 
     if (status == 'rejected' || status == 'approve') {
@@ -346,8 +917,7 @@ const approveDelivery = asyncHandler(async (req, res) => {
         {
             $set: {
                 "societyDetails.societyApartments.$[elem].entryStatus.status": "approve",
-                "societyDetails.societyApartments.$[elem].entryStatus.approvedBy.userId": req.user._id,
-                "societyDetails.societyApartments.$[elem].entryStatus.approvedBy.name": req.user.userName
+                "societyDetails.societyApartments.$[elem].entryStatus.approvedBy": req.user._id,
             }
         },
         {
@@ -365,7 +935,7 @@ const approveDelivery = asyncHandler(async (req, res) => {
         notificationId: delivery.notificationId,
     };
 
-    FCMTokens.forEach(token => {
+    FCMTokens.forEach((token) => {
         sendNotificationCancel(token, JSON.stringify(cancelPayload));
     });
 
@@ -376,7 +946,7 @@ const approveDelivery = asyncHandler(async (req, res) => {
         action: 'DELIVERY_ENTRY_APPROVE'
     };
 
-    FCMTokens.forEach(token => {
+    FCMTokens.forEach((token) => {
         sendNotification(token, payload.action, JSON.stringify(payload));
     });
 
@@ -387,16 +957,25 @@ const approveDelivery = asyncHandler(async (req, res) => {
 
 const rejectDelivery = asyncHandler(async (req, res) => {
     const { id } = req.body;
+    const user = await User.findById(req.user._id);
     const deliveryId = mongoose.Types.ObjectId.createFromHexString(id);
     const delivery = await DeliveryEntry.findById(deliveryId);
-    const user = await User.findById(req.user._id);
+
+    if (!delivery) {
+        throw new ApiError(500, "Invalid id");
+    }
+
     const society = await ProfileVerification.findOne({ user: req.user._id });
+
+    if (!society) {
+        throw new ApiError(500, "Invalid user");
+    }
 
     const profile = await ProfileVerification.aggregate([
         {
             $match: {
                 residentStatus: 'approve',
-                societyName: society.societyName, // Replace with actual society name
+                societyName: society.societyName,
                 societyBlock: society.societyBlock,
                 apartment: society.apartment
             }
@@ -440,10 +1019,6 @@ const rejectDelivery = asyncHandler(async (req, res) => {
         }
     ]);
 
-    if (!delivery) {
-        throw new ApiError(500, "Invalid id");
-    }
-
     const status = getEntryStatus(delivery.toObject(), society.societyBlock, society.apartment)
 
     if (status == 'rejected' || status == 'approve') {
@@ -459,8 +1034,7 @@ const rejectDelivery = asyncHandler(async (req, res) => {
         {
             $set: {
                 "societyDetails.societyApartments.$[elem].entryStatus.status": "rejected",
-                "societyDetails.societyApartments.$[elem].entryStatus.rejectedBy.userId": req.user._id,
-                "societyDetails.societyApartments.$[elem].entryStatus.rejectedBy.name": req.user.userName,
+                "societyDetails.societyApartments.$[elem].entryStatus.rejectedBy": req.user._id,
                 exitTime: new Date()
             }
         },
@@ -508,15 +1082,14 @@ const allowDeliveryBySecurity = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Invalid id");
     }
 
-    const pendingApartments = delivery.societyDetails.societyApartments.filter(apartment => apartment.entryStatus.status === 'approve' || apartment.entryStatus.status === 'rejected');
+    const pendingApartments = delivery.societyDetails.societyApartments.filter((apartment) => apartment.entryStatus.status === 'approve' || apartment.entryStatus.status === 'rejected');
 
     if (pendingApartments.length <= 0) {
         throw new ApiError(500, "Wait for resident response");
     }
 
     delivery.guardStatus.status = 'approve';
-    delivery.guardStatus.guard.userId = req.user._id;
-    delivery.guardStatus.guard.name = req.user.userName;
+    delivery.guardStatus.guard = req.user._id;
     delivery.entryTime = new Date();
     const result = await delivery.save({ validateBeforeSave: false });
 
@@ -545,8 +1118,7 @@ const denyDeliveryBySecurity = asyncHandler(async (req, res) => {
     }
 
     delivery.guardStatus.status = 'rejected';
-    delivery.guardStatus.guard.userId = req.user._id;
-    delivery.guardStatus.guard.name = req.user.userName;
+    delivery.guardStatus.guard = req.user._id;
     const result = await delivery.save({ validateBeforeSave: false });
 
     if (!result) {
@@ -592,15 +1164,135 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
         {
             $match: {
                 "societyDetails.societyName": user.societyName,
-                'guardStatus.status': 'approve',  // Condition for guard status
-                hasExited: false,                 // Condition for exit status
+                'societyDetails.societyApartments': {
+                    $elemMatch: {
+                        societyBlock: user.societyBlock,
+                        apartment: user.apartment,
+                        'entryStatus.status': 'approve'
+                    }
+                },
+                'guardStatus.status': 'approve',
+                hasExited: false,
             },
         },
         {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
+            }
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Rebuild societyApartments array
+        {
+            $group: {
+                _id: {
+                    id: "$_id", // group by document ID
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" }
+            }
+        },
+        // Rebuild societyDetails field
+        {
             $project: {
-                // Include all fields of the document
-                _id: 1,  // or just exclude fields you don't want to show
-                guardStatus: 1,
+                _id: "$_id.id",
                 name: 1,
                 mobNumber: 1,
                 profileImg: 1,
@@ -608,49 +1300,17 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
                 companyLogo: 1,
                 vehicleDetails: 1,
                 entryType: 1,
+                guardStatus: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
                 entryTime: 1,
                 exitTime: 1,
-                hasExited: 1,
                 notificationId: 1,
-                societyDetails: {
-                    societyName: "$societyDetails.societyName",
-                    societyApartments: {
-                        $filter: {
-                            input: "$societyDetails.societyApartments",
-                            as: "apartment",
-                            cond: {
-                                $and: [
-                                    { $eq: ["$$apartment.societyBlock", user.societyBlock] },
-                                    { $eq: ["$$apartment.apartment", user.apartment] },
-                                ],
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    ]);
-
-
-    if (deliveryEntry.length <= 0) {
-        throw new ApiError(500, "There is no entry");
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, deliveryEntry, "Current entries fetched successfully.")
-    );
-});
-
-const getPastDeliveryEntries = asyncHandler(async (req, res) => {
-    const user = await ProfileVerification.findOne({ user: req.user._id });
-
-    const deliveryEntry = await DeliveryEntry.aggregate([
-        {
-            $match: {
-                "societyDetails.societyName": user.societyName,
-                'guardStatus.status': 'approve',
-                hasExited: true,
-            },
+                hasExited: 1
+            }
         },
         {
             $project: {
@@ -669,6 +1329,7 @@ const getPastDeliveryEntries = asyncHandler(async (req, res) => {
                 notificationId: 1,
                 societyDetails: {
                     societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates",
                     societyApartments: {
                         $filter: {
                             input: "$societyDetails.societyApartments",
@@ -686,12 +1347,396 @@ const getPastDeliveryEntries = asyncHandler(async (req, res) => {
         },
     ]);
 
-    if (deliveryEntry.length <= 0) {
+    const preApprovedEntry = await PreApproved.aggregate([
+        {
+            $match: {
+                'allowedBy.status': 'approve',
+                hasExited: false,
+                societyName: user.societyName,
+                blockName: user.societyBlock,
+                apartment: user.apartment,
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$allowedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "allowedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$allowedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                allowedBy: 1,
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                profileType: 1,
+                entryType: 1,
+                societyName: 1,
+                blockName: 1,
+                apartment: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+            },
+        },
+    ]);
+
+    const response = [...deliveryEntry, ...preApprovedEntry];
+
+    if (response.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, deliveryEntry, "Past entries fetched successfully.")
+        new ApiResponse(200, response, "Current entries fetched successfully.")
+    );
+});
+
+const getPastDeliveryEntries = asyncHandler(async (req, res) => {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                "societyDetails.societyName": user.societyName,
+                'guardStatus.status': 'approve',
+                hasExited: true,
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
+            }
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Rebuild societyApartments array
+        {
+            $group: {
+                _id: {
+                    id: "$_id", // group by document ID
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" }
+            }
+        },
+        // Rebuild societyDetails field
+        {
+            $project: {
+                _id: "$_id.id",
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1
+            }
+        },
+        {
+            $project: {
+                _id: 1,
+                guardStatus: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+                notificationId: 1,
+                societyDetails: {
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates",
+                    societyApartments: {
+                        $filter: {
+                            input: "$societyDetails.societyApartments",
+                            as: "apartment",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$apartment.societyBlock", user.societyBlock] },
+                                    { $eq: ["$$apartment.apartment", user.apartment] },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    ]);
+
+    const preApprovedEntry = await PreApproved.aggregate([
+        {
+            $match: {
+                'allowedBy.status': 'approve',
+                hasExited: true,
+                societyName: user.societyName,
+                blockName: user.societyBlock,
+                apartment: user.apartment,
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$allowedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "allowedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$allowedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                allowedBy: 1,
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                profileType: 1,
+                entryType: 1,
+                societyName: 1,
+                blockName: 1,
+                apartment: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+            },
+        },
+    ]);
+
+    const response = [...deliveryEntry, ...preApprovedEntry];
+
+    if (response.length <= 0) {
+        throw new ApiError(500, "There is no entry");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, response, "Past entries fetched successfully.")
     );
 });
 
@@ -710,6 +1755,143 @@ const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
                     }
                 },
             },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
+            }
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Rebuild societyApartments array
+        {
+            $group: {
+                _id: {
+                    id: "$_id", // group by document ID
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" }
+            }
+        },
+        // Rebuild societyDetails field
+        {
+            $project: {
+                _id: "$_id.id",
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1
+            }
         },
         {
             $project: {
@@ -746,7 +1928,6 @@ const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
         },
     ]);
 
-
     if (deliveryEntry.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
@@ -758,11 +1939,7 @@ const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
 
 function getEntryStatus(data, societyBlock, apartment) {
     const apartments = data.societyDetails.societyApartments;
-    const targetApartment = apartments.find(
-        (apartmentInfo) =>
-            apartmentInfo.societyBlock === societyBlock &&
-            apartmentInfo.apartment === apartment
-    );
+    const targetApartment = apartments.find((apartmentInfo) => apartmentInfo.societyBlock === societyBlock && apartmentInfo.apartment === apartment);
 
     if (targetApartment) {
         return targetApartment.entryStatus.status;

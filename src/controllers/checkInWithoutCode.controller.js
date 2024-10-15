@@ -4,16 +4,15 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
 import { Society } from '../models/society.model.js';
 import { DeliveryEntry } from '../models/deliveryEntry.model.js';
-import { CheckInCode } from '../models/checkInCode.model.js';
-import { generateCheckInCode } from '../utils/generateCheckInCode.js';
-import { PreApproved } from '../models/preApproved.model.js';
 
 const getGuardSocietyBlocks = asyncHandler(async (req, res) => {
     const userId = req.user._id;
-    console.log(userId);
-
     const security = await ProfileVerification.findOne({ user: userId });
-    console.log("security data : ", security);
+
+    if (!security) {
+        throw new ApiError(500, `You are not security guard`);
+    }
+
     const society = await Society.findOne({ societyName: security.societyName });
 
     if (!society) {
@@ -28,8 +27,12 @@ const getGuardSocietyBlocks = asyncHandler(async (req, res) => {
 const getGuardSocietyApartments = asyncHandler(async (req, res) => {
     const { blockName } = req.body;
     const userId = req.user._id;
-
     const security = await ProfileVerification.findOne({ user: userId });
+
+    if (!security) {
+        throw new ApiError(500, `You are not security guard`);
+    }
+
     const society = await Society.findOne({ societyName: security.societyName });
 
     if (!society) {
@@ -44,10 +47,7 @@ const getGuardSocietyApartments = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Apartments not found.");
     }
 
-    // Extract only apartmentName values
-    const apartmentNames = apartmentsInBlock.map(
-        apartment => apartment.apartmentName
-    );
+    const apartmentNames = apartmentsInBlock.map((apartment) => apartment.apartmentName);
 
     if (apartmentNames.length <= 0) {
         throw new ApiError(500, "Apartments not found.");
@@ -59,10 +59,14 @@ const getGuardSocietyApartments = asyncHandler(async (req, res) => {
 });
 
 const getMobileNumber = asyncHandler(async (req, res) => {
-    const { mobNumber } = req.body;
-
+    const { mobNumber, entryType } = req.body;
     const security = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
-    const deliveryEntry = await DeliveryEntry.findOne({ mobNumber }).select("-__v -vehicleDetails -entryType -societyDetails -createdAt -updatedAt");
+
+    if (!security) {
+        throw new ApiError(500, `You are not security guard`);
+    }
+
+    const deliveryEntry = await DeliveryEntry.findOne({ mobNumber, entryType }).select("-__v -vehicleDetails -entryType -societyDetails -createdAt -updatedAt");
 
     if (!deliveryEntry) {
         return res.status(200).json(

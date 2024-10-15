@@ -12,35 +12,70 @@ const checkInCodeSchema = new Schema({
     },
 
     name: {
-        type: String
+        type: String,
+        trim: true,
     },
 
     mobNumber: {
+        type: String,
+        trim: true,
+    },
+
+    profileImg: {
         type: String
     },
 
-    societyName: {
-        type: String
+    companyName: {
+        type: String,
+        trim: true,
     },
 
-    blockName: {
-        type: String
+    companyLogo: {
+        type: String,
     },
 
-    apartment: {
-        type: String
+    serviceName: {
+        type: String,
+        trim: true,
     },
 
-    checkInCode: {
-        type: String
-    },
-
-    profileType: {
-        type: String
+    serviceLogo: {
+        type: String,
     },
 
     vehicleNo: {
-        type: String
+        type: String,
+        trim: true,
+    },
+
+    profileType: {
+        type: String,
+        trim: true,
+    },
+
+    entryType: {
+        type: String,
+        trim: true,
+    },
+
+    societyName: {
+        type: String,
+        trim: true,
+    },
+
+    blockName: {
+        type: String,
+        trim: true,
+    },
+
+    apartment: {
+        type: String,
+        trim: true,
+    },
+
+    checkInCode: {
+        type: String,
+        trim: true,
     },
 
     checkInCodeStartDate: {
@@ -61,7 +96,7 @@ const checkInCodeSchema = new Schema({
 
     isPreApproved: {
         type: Boolean,
-        default: false, // Optional: set a default value
+        default: false,
     },
 
 }, { timestamps: true });

@@ -17,22 +17,12 @@ const societyDetails = new Schema({
                         default: 'pending'
                     },
                     approvedBy: {
-                        userId: {
-                            type: Schema.Types.ObjectId,
-                            ref: "User"
-                        },
-                        name: {
-                            type: String
-                        }
+                        type: Schema.Types.ObjectId,
+                        ref: "User"
                     },
                     rejectedBy: {
-                        userId: {
-                            type: Schema.Types.ObjectId,
-                            ref: "User"
-                        },
-                        name: {
-                            type: String
-                        }
+                        type: Schema.Types.ObjectId,
+                        ref: "User"
                     }
                 }
             }
@@ -49,7 +39,6 @@ const deliveryEntrySchema = new Schema({
         type: String,
         required: true,
         trim: true,
-        lowercase: true
     },
 
     mobNumber: {
@@ -73,10 +62,30 @@ const deliveryEntrySchema = new Schema({
         type: String,
     },
 
+    serviceName: {
+        type: String,
+        trim: true,
+    },
+
+    serviceLogo: {
+        type: String,
+    },
+
+    accompanyingGuest: {
+        type: String,
+        trim: true,
+    },
+
     vehicleDetails: {
         type: {
-            vehicleType: String,
-            vehicleNumber: String
+            vehicleType: {
+                type: String,
+                trim: true,
+            },
+            vehicleNumber: {
+                type: String,
+                trim: true,
+            }
         }
     },
 
@@ -87,19 +96,14 @@ const deliveryEntrySchema = new Schema({
     },
 
     guardStatus: {
+        guard: {
+            type: Schema.Types.ObjectId,
+            ref: "User"
+        },
         status: {
             type: String,
             enum: ['pending', 'approve', 'rejected'],
             default: 'pending'
-        },
-        guard: {
-            userId: {
-                type: Schema.Types.ObjectId,
-                ref: "User"
-            },
-            name: {
-                type: String
-            }
         },
     },
 
@@ -124,30 +128,5 @@ const deliveryEntrySchema = new Schema({
 
 }, { timestamps: true });
 
-export const DeliveryEntry = mongoose.model("DeliveryEntry", deliveryEntrySchema);
 
-// Payload
-// {
-//     "name": "john doe",
-//         "mobNumber": "1234567890",
-//             "profileImg": "https://example.com/johndoe.jpg",
-//                 "vehicleDetails": {
-//         "vehicleType": "bike",
-//             "vehicleNumber": "MH12AB1234"
-//     },
-//     "entryType": "delivery",
-//         "societyDetails": {
-//         "societyName": "Sunshine Apartments",
-//             "societyApartments": [
-//                 {
-//                     "societyBlock": "A",
-//                     "apartmentName": "101"
-//                 },
-//                 {
-//                     "societyBlock": "B",
-//                     "apartmentName": "202"
-//                 }
-//             ],
-//                 "societyGates": "Gate 1"
-//     }
-// }
+export const DeliveryEntry = mongoose.model("DeliveryEntry", deliveryEntrySchema);

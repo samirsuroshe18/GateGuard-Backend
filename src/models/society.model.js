@@ -6,19 +6,28 @@ const societySchema = new Schema({
         required: true,
         unique: true
     },
+
     societyBlocks: {
         type: [String], // Array of strings
         default: [],
     },
+
     societyApartments: {
         type: [
             {
-                societyBlock: String,
-                apartmentName: String
+                societyBlock: {
+                    type: String,
+                    trim: true,
+                },
+                apartmentName: {
+                    type: String,
+                    trim: true,
+                }
             }
         ],
         default: [],
     },
+
     societyGates: {
         type: [String],
         default: [],

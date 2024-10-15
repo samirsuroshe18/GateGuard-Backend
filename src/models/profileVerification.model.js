@@ -34,7 +34,8 @@ const profileVerificationSchema = new Schema({
     },
 
     gateAssign: {
-        type: String
+        type: String,
+        trim: true,
     },
 
     residentStatus: {
