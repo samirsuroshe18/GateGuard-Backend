@@ -41,8 +41,70 @@ const addPreApproval = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
+    const checkInCode = await CheckInCode.aggregate([
+        {
+            $match: {
+                _id: preApprovalEntry._id
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleNo: 1,
+                profileType: 1,
+                entryType: 1,
+                societyName: 1,
+                blockName: 1,
+                apartment: 1,
+                checkInCode: 1,
+                checkInCodeStartDate: 1,
+                checkInCodeExpiryDate: 1,
+                checkInCodeStart: 1,
+                checkInCodeExpiry: 1,
+                isPreApproved: 1,
+            },
+        },
+    ]);
+
     return res.status(200).json(
-        new ApiResponse(200, preApprovalEntry, "Pre-approval entry added successfully")
+        new ApiResponse(200, checkInCode, "Pre-approval entry added successfully")
     );
 });
 

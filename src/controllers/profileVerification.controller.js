@@ -10,7 +10,7 @@ import { User } from '../models/user.model.js';
 const getPendingResidentRequest = asyncHandler(async (req, res) => {
     const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
 
-    if (adminSociety) {
+    if (!adminSociety) {
         throw new ApiError(404, "Profile is not found");
     }
 
@@ -68,8 +68,8 @@ const getPendingResidentRequest = asyncHandler(async (req, res) => {
     ]);
 
 
-    if (!pendingResidentRequest) {
-        throw new ApiError(500, "Something went wrong");
+    if (pendingResidentRequest.length <= 0) {
+        throw new ApiError(500, "No resident request");
     }
 
     return res.status(200).json(
@@ -80,7 +80,7 @@ const getPendingResidentRequest = asyncHandler(async (req, res) => {
 const getPendingSecurityRequest = asyncHandler(async (req, res) => {
     const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
 
-    if (adminSociety) {
+    if (!adminSociety) {
         throw new ApiError(404, "Profile is not found");
     }
 
@@ -136,8 +136,8 @@ const getPendingSecurityRequest = asyncHandler(async (req, res) => {
     ]);
 
 
-    if (!pendingSecurityRequest) {
-        throw new ApiError(500, "Something went wrong");
+    if (pendingSecurityRequest.length <= 0) {
+        throw new ApiError(500, "No security request");
     }
 
     return res.status(200).json(

@@ -4,6 +4,8 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { PreApproved } from '../models/preApproved.model.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
+import { User } from '../models/user.model.js';
+import { sendNotification } from '../utils/sendResidentNotification.js';
 
 
 const checkInByCodeEntry = asyncHandler(async (req, res) => {
@@ -39,6 +41,14 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "CheckIn code is invalid or expired.");
     }
 
+    let residentOrSecurityImg = null;
+    if (checkInCodeExist.profileType != null && checkInCodeExist.profileType == 'Resident' || checkInCodeExist.profileType == 'Security') {
+        const user = await User.findById(checkInCodeExist.user);
+        if (user) {
+            residentOrSecurityImg = user.profile;
+        }
+    }
+
     const msg = compareTime(checkInCodeExist.checkInCodeStart, checkInCodeExist.checkInCodeExpiry);
 
     if (msg) {
@@ -53,13 +63,14 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         'allowedBy.user': req.user._id,
         name: checkInCodeExist.name,
         mobNumber: checkInCodeExist.mobNumber,
-        profileImg: checkInCodeExist.profileImg,
+        profileImg: residentOrSecurityImg != null ? residentOrSecurityImg : checkInCodeExist.profileImg,
         companyName: checkInCodeExist.companyName,
         companyLogo: checkInCodeExist.companyLogo,
         serviceName: checkInCodeExist.serviceName,
         serviceLogo: checkInCodeExist.serviceLogo,
         'vehicleDetails.vehicleNumber': checkInCodeExist.vehicleNo,
         entryType: checkInCodeExist.entryType,
+        profileType: checkInCodeExist.profileType,
         societyName: checkInCodeExist.societyName,
         blockName: checkInCodeExist.blockName,
         apartment: checkInCodeExist.apartment,
@@ -71,10 +82,94 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
+    const profile = await ProfileVerification.aggregate([
+        {
+            $match: {
+                residentStatus: 'approve',
+                societyName: checkInCodeEntry.societyName,
+                societyBlock: checkInCodeEntry.blockName,
+                apartment: checkInCodeEntry.apartment
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                            FCMToken: 1
+                        }
+                    }
+                ],
+                as: "user"
+            }
+        },
+        {
+            // Unwind the user array so that we only get the user object, not an array
+            $unwind: {
+                path: "$user",
+                preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
+            }
+        },
+        {
+            $project: {
+                user: 1
+            }
+        }
+    ]);
+
+    const FCMTokens = profile.map((item) => item.user.FCMToken);
+
+    let payload = {
+        guardName: security.userName,
+        entryType: checkInCodeEntry.entryType,
+        deliveryName: checkInCodeEntry.name,
+        action: 'NOTIFY_CHECKED_IN_ENTRY'
+    };
+
+    FCMTokens.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
+
     return res.status(200).json(
         new ApiResponse(200, {}, "CheckInCode entry added successfully")
     );
 });
+
+// function compareTime(startTime, endTime) {
+//     console.log(`Starting Date : ${startTime.getDate()}/${startTime.getMonth() + 1}/${startTime.getFullYear()}`);
+//     console.log(`Starting Time : ${startTime.getHours()}:${startTime.getMinutes()}:${startTime.getSeconds()}`);
+//     console.log(`Ending Date : ${endTime.getDate()}/${endTime.getMonth() + 1}/${endTime.getFullYear()}`);
+//     console.log(`Ending Time : ${endTime.getHours()}:${endTime.getMinutes()}:${endTime.getSeconds()}`);
+
+//     const now = new Date();
+//     const currentTime = now.getTime(); // Get current time in milliseconds
+
+//     // Convert startTime and endTime to milliseconds
+//     const start = startTime.getTime();
+//     const end = endTime.getTime();
+
+//     // Compare current time with start and end times
+//     if (currentTime < start) {
+//         return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
+//     } else if (currentTime > end) {
+//         return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
+//     }
+
+//     return null; // Valid access
+// }
 
 function compareTime(startTime, endTime) {
     const now = new Date();
