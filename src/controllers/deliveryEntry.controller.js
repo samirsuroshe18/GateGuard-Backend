@@ -1125,54 +1125,6 @@ const allowDeliveryBySecurity = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
-    const profile = await ProfileVerification.aggregate([
-        {
-            $match: {
-                residentStatus: 'approve',
-                societyName: society.societyName,
-                societyBlock: society.societyBlock,
-                apartment: society.apartment
-            }
-        },
-        {
-            $lookup: {
-                from: "users",
-                let: { userId: "$user" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$_id", "$$userId"] }
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            userName: 1,
-                            profile: 1,
-                            email: 1,
-                            role: 1,
-                            phoneNo: 1,
-                            FCMToken: 1
-                        }
-                    }
-                ],
-                as: "user"
-            }
-        },
-        {
-            // Unwind the user array so that we only get the user object, not an array
-            $unwind: {
-                path: "$user",
-                preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
-            }
-        },
-        {
-            $project: {
-                user: 1
-            }
-        }
-    ]);
-
     return res.status(200).json(
         new ApiResponse(200, {}, "Delivery Allowed successfully.")
     );
