@@ -181,11 +181,12 @@ function compareTime(startTime, endTime) {
 
     // Compare current time with start and end times
     // Check if the time range crosses midnight
-    const crossesMidnight = start > end;
+    const startDate = startTime ? new Date(startTime).toISOString().split('T')[0] : null;
+    const endDate = endTime ? new Date(endTime).toISOString().split('T')[0] : null;
 
-    if (crossesMidnight) {
+    if (startDate !== endDate) {
         // If current time is before the end or after the start
-        if (current < start && current > end) {
+        if (current < start || current > end) {
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
         }
     } else {
