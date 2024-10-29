@@ -149,8 +149,8 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
 });
 
 function compareTime(startTime, endTime) {
-    const startDate = `${startTime.getDate()}/${startTime.getMonth() + 1}/${startTime.getFullYear()}`;
-    const endDate = `${endTime.getDate()}/${endTime.getMonth() + 1}/${endTime.getFullYear()}`;
+    const startDate = `${startTime?.getDate()}/${startTime?.getMonth() + 1}/${startTime?.getFullYear()}`;
+    const endDate = `${endTime?.getDate()}/${endTime?.getMonth() + 1}/${endTime?.getFullYear()}`;
 
     const now = new Date();
     const current = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
