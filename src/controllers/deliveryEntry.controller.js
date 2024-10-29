@@ -960,7 +960,7 @@ const approveDelivery = asyncHandler(async (req, res) => {
         userName: user.userName,
         deliveryName: delivery.name,
         companyName: delivery.companyName,
-        action: 'NOTIFY_GUARD'
+        action: 'NOTIFY_GUARD_APPROVE'
     };
 
     FCMTokens.forEach((token) => {
@@ -1087,7 +1087,7 @@ const rejectDelivery = asyncHandler(async (req, res) => {
         userName: user.userName,
         deliveryName: delivery.name,
         companyName: delivery.companyName,
-        action: 'NOTIFY_GUARD'
+        action: 'NOTIFY_GUARD_REJECTED'
     };
 
     FCMTokens.forEach(token => {

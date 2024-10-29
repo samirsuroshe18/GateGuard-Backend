@@ -148,46 +148,31 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
     );
 });
 
-// function compareTime(startTime, endTime) {
-//     console.log(`Starting Date : ${startTime.getDate()}/${startTime.getMonth() + 1}/${startTime.getFullYear()}`);
-//     console.log(`Starting Time : ${startTime.getHours()}:${startTime.getMinutes()}:${startTime.getSeconds()}`);
-//     console.log(`Ending Date : ${endTime.getDate()}/${endTime.getMonth() + 1}/${endTime.getFullYear()}`);
-//     console.log(`Ending Time : ${endTime.getHours()}:${endTime.getMinutes()}:${endTime.getSeconds()}`);
-
-//     const now = new Date();
-//     const currentTime = now.getTime(); // Get current time in milliseconds
-
-//     // Convert startTime and endTime to milliseconds
-//     const start = startTime.getTime();
-//     const end = endTime.getTime();
-
-//     // Compare current time with start and end times
-//     if (currentTime < start) {
-//         return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
-//     } else if (currentTime > end) {
-//         return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
-//     }
-
-//     return null; // Valid access
-// }
-
 function compareTime(startTime, endTime) {
+    const startDate = `${startTime.getDate()}/${startTime.getMonth() + 1}/${startTime.getFullYear()}`;
+    const endDate = `${endTime.getDate()}/${endTime.getMonth() + 1}/${endTime.getFullYear()}`;
+
     const now = new Date();
     const current = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const currentDate = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
 
     // Extract start and end times in seconds
     const start = startTime?.getHours() * 3600 + startTime?.getMinutes() * 60 + startTime?.getSeconds();
     const end = endTime?.getHours() * 3600 + endTime?.getMinutes() * 60 + endTime?.getSeconds();
 
-    // Compare current time with start and end times
-    // Check if the time range crosses midnight
-    const startDate = startTime ? new Date(startTime).toISOString().split('T')[0] : null;
-    const endDate = endTime ? new Date(endTime).toISOString().split('T')[0] : null;
-
-    if (startDate !== endDate) {
-        // If current time is before the end or after the start
-        if (current < start || current > end) {
+    if (start >= end) {
+        if (start === end && currentDate === startDate && current < start) {
+            // If current time is before the end or after the start
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
+        } else if (start === end && currentDate == endDate && current > end) {
+            // If current time is before the end or after the start
+            return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
+        } else if (start > end && currentDate == startDate && current < start) {
+            // If current time is before the end or after the start
+            return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
+        } else if (start > end && currentDate == endDate && current > end) {
+            // If current time is before the end or after the start
+            return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
         }
     } else {
         // Regular comparison if the range doesn't cross midnight
