@@ -30,10 +30,10 @@ const addPreApproval = asyncHandler(async (req, res) => {
         blockName: user.societyBlock,
         apartment: user.apartment,
         checkInCode: await generateCheckInCode(user.societyName),
-        checkInCodeStart: new Date(checkInCodeStart),
-        checkInCodeExpiry: new Date(checkInCodeExpiry),
-        checkInCodeStartDate: new Date(checkInCodeStartDate),
-        checkInCodeExpiryDate: new Date(checkInCodeExpiryDate),
+        checkInCodeStart: new Date(checkInCodeStart).toISOString(),
+        checkInCodeExpiry: new Date(checkInCodeExpiry).toISOString(),
+        checkInCodeStartDate: new Date(checkInCodeStartDate).toISOString(),
+        checkInCodeExpiryDate: new Date(checkInCodeExpiryDate).toISOString(),
         isPreApproved: true
     });
 

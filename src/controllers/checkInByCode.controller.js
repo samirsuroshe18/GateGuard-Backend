@@ -139,9 +139,11 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         action: 'NOTIFY_CHECKED_IN_ENTRY'
     };
 
-    FCMTokens.forEach(token => {
-        sendNotification(token, payload.action, JSON.stringify(payload));
-    });
+    if (checkInCodeEntry.entryType != null) {
+        FCMTokens.forEach(token => {
+            sendNotification(token, payload.action, JSON.stringify(payload));
+        });
+    }
 
     return res.status(200).json(
         new ApiResponse(200, {}, "CheckInCode entry added successfully")
@@ -160,18 +162,14 @@ function compareTime(startTime, endTime) {
     const start = startTime?.getHours() * 3600 + startTime?.getMinutes() * 60 + startTime?.getSeconds();
     const end = endTime?.getHours() * 3600 + endTime?.getMinutes() * 60 + endTime?.getSeconds();
 
-    if (start >= end) {
+    if (start > end || start === end) {
         if (start === end && currentDate === startDate && current < start) {
-            // If current time is before the end or after the start
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
         } else if (start === end && currentDate == endDate && current > end) {
-            // If current time is before the end or after the start
             return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
         } else if (start > end && currentDate == startDate && current < start) {
-            // If current time is before the end or after the start
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
         } else if (start > end && currentDate == endDate && current > end) {
-            // If current time is before the end or after the start
             return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
         }
     } else {
