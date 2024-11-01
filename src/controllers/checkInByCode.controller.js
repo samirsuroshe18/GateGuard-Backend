@@ -164,6 +164,7 @@ function compareTime(startTime, endTime) {
 
     console.log(`original start time : ${startTime}`);
     console.log(`original end time : ${endTime}`);
+    console.log(`original current time : ${now}`);
     console.log(`start date : ${startDate}`);
     console.log(`end date : ${endDate}`);
     console.log(`current date : ${currentDate}`);
