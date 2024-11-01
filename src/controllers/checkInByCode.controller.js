@@ -162,6 +162,13 @@ function compareTime(startTime, endTime) {
     const start = startTime?.getHours() * 3600 + startTime?.getMinutes() * 60 + startTime?.getSeconds();
     const end = endTime?.getHours() * 3600 + endTime?.getMinutes() * 60 + endTime?.getSeconds();
 
+    console.log(`start date : ${startDate}`);
+    console.log(`end date : ${endDate}`);
+    console.log(`current date : ${currentDate}`);
+    console.log(`start time : ${start}`);
+    console.log(`end time : ${end}`);
+    console.log(`current time : ${current}`);
+
     if (start > end || start === end) {
         if (start === end && currentDate === startDate && current < start) {
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
