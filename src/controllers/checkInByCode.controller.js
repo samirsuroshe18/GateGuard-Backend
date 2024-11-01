@@ -155,8 +155,10 @@ function compareTime(startTime, endTime) {
     const endDate = `${endTime?.getDate()}/${endTime?.getMonth() + 1}/${endTime?.getFullYear()}`;
 
     const now = new Date();
-    const current = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-    const currentDate = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC + 5.5 hours
+    const localTime = new Date(now.getTime() + istOffset);
+    const current = localTime.getHours() * 3600 + localTime.getMinutes() * 60 + localTime.getSeconds();
+    const currentDate = `${localTime.getDate()}/${localTime.getMonth() + 1}/${localTime.getFullYear()}`;
 
     // Extract start and end times in seconds
     const start = startTime?.getHours() * 3600 + startTime?.getMinutes() * 60 + startTime?.getSeconds();
@@ -164,7 +166,7 @@ function compareTime(startTime, endTime) {
 
     console.log(`original start time : ${startTime}`);
     console.log(`original end time : ${endTime}`);
-    console.log(`original current time : ${now}`);
+    console.log(`original current time : ${endTime}`);
     console.log(`start date : ${startDate}`);
     console.log(`end date : ${endDate}`);
     console.log(`current date : ${currentDate}`);
