@@ -162,6 +162,8 @@ function compareTime(startTime, endTime) {
     const start = startTime?.getHours() * 3600 + startTime?.getMinutes() * 60 + startTime?.getSeconds();
     const end = endTime?.getHours() * 3600 + endTime?.getMinutes() * 60 + endTime?.getSeconds();
 
+    console.log(`original start time : ${startTime}`);
+    console.log(`original end time : ${endTime}`);
     console.log(`start date : ${startDate}`);
     console.log(`end date : ${endDate}`);
     console.log(`current date : ${currentDate}`);
@@ -171,19 +173,25 @@ function compareTime(startTime, endTime) {
 
     if (start > end || start === end) {
         if (start === end && currentDate === startDate && current < start) {
+            console.log(`cond : 1`);
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
         } else if (start === end && currentDate == endDate && current > end) {
+            console.log(`cond : 2`);
             return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
         } else if (start > end && currentDate == startDate && current < start) {
+            console.log(`cond : 3`);
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
         } else if (start > end && currentDate == endDate && current > end) {
+            console.log(`cond : 4`);
             return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
         }
     } else {
         // Regular comparison if the range doesn't cross midnight
         if (current < start) {
+            console.log(`cond : 5`);
             return `You are not authorized to enter yet. Your access begins from ${formatTime(startTime)} to ${formatTime(endTime)}. Please wait until the allowed entry time.`;
         } else if (current > end) {
+            console.log(`cond : 6`);
             return `Your access time has expired for today. The allowed entry was from ${formatTime(startTime)} to ${formatTime(endTime)}. Please contact the host for further assistance.`;
         }
     }
