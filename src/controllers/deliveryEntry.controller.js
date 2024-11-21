@@ -11,7 +11,7 @@ import { PreApproved } from '../models/preApproved.model.js';
 
 const addDeliveryEntry = asyncHandler(async (req, res) => {
     const { name, mobNumber, companyName, companyLogo, serviceName, serviceLogo, accompanyingGuest, vehicleDetails, entryType, societyDetails } = req.body;
-    const profileImg = `${process.env.IMAGE_DOMAIN}${req.file.filename}`;
+    const profileImg = `${process.env.DOMAIN_NAME}/images/${req.file.filename}`;
 
     const profile = await ProfileVerification.aggregate([
         {
