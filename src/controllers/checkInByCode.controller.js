@@ -43,10 +43,10 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
 
     let residentOrSecurityImg = null;
     if (checkInCodeExist.profileType != null && checkInCodeExist.profileType == 'Resident' || checkInCodeExist.profileType == 'Security') {
-        const user = await User.findById(checkInCodeExist.user);
-        if (user) {
-            residentOrSecurityImg = user.profile;
-        }
+        const message = checkInCodeExist.profileType == 'Resident' ? "You are already registered as a resident. No new entry is required." : "You are already registered as a security guard. No new entry is required." ;
+        return res.status(200).json(
+            new ApiResponse(200, {}, message)
+        );
     }
 
     const msg = compareTime(checkInCodeExist.checkInCodeStart, checkInCodeExist.checkInCodeExpiry);

@@ -1,9 +1,7 @@
-// controllers/otpController.js
 import { User } from '../models/user.model.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asynchandler.js';
-
 
 const verifyEmail = asyncHandler(async (req, res) => {
   try {

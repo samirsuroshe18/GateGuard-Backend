@@ -6,6 +6,7 @@ import { ProfileVerification } from '../models/profileVerification.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import { PreApproved } from '../models/preApproved.model.js';
 import mongoose from 'mongoose';
+import { sendNotification } from '../utils/sendResidentNotification.js';
 
 const addPreApproval = asyncHandler(async (req, res) => {
     const { name, mobNumber, profileImg, companyName, companyLogo, serviceName, serviceLogo, vehicleNo, entryType, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate, } = req.body;
@@ -124,6 +125,24 @@ const exitEntry = asyncHandler(async (req, res) => {
     if (!result) {
         throw new ApiError(500, "Something went wrong");
     }
+
+    const members = await ProfileVerification.find({
+        societyName: result.societyName,
+        societyBlock: result.blockName,
+        apartment: result.apartment,
+    }).populate('user');
+
+    const fcm = members.map(item => item.user.FCMToken);
+
+    let payload = {
+        deliveryName: result.name,
+        companyName: result.companyName,
+        action: 'NOTIFY_EXIT_ENTRY'
+    };
+
+    fcm.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
 
     return res.status(200).json(
         new ApiResponse(200, {}, "Delivery exited successfully.")

@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import { User } from '../models/user.model.js';
+import { sendNotification } from '../utils/sendResidentNotification.js';
 
 const getPendingResidentRequest = asyncHandler(async (req, res) => {
     const adminSociety = await ProfileVerification.findOne({ user: req.user._id });
@@ -194,6 +195,13 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
+    const token = isUpdateUser.FCMToken;
+    const action = residentStatus === 'approve' ? 'RESIDENT_APPROVE' : 'RESIDENT_REJECT';
+    let payload = {
+        action
+    };
+    sendNotification(token, action, JSON.stringify(payload));
+
     return res.status(200).json(
         new ApiResponse(200, {}, "Request verified successfully")
     );
@@ -246,6 +254,13 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
     if (!isUpdateUser) {
         throw new ApiError(500, "Something went wrong");
     }
+
+    const token = isUpdateUser.FCMToken;
+    const action = guardStatus === 'approve' ? 'GUARD_APPROVE' : 'GUARD_REJECT';
+    let payload = {
+        action
+    };
+    sendNotification(token, action, JSON.stringify(payload));
 
     return res.status(200).json(
         new ApiResponse(200, {}, "Request verified successfully")
