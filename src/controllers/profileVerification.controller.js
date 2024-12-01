@@ -198,7 +198,7 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
     const token = isUpdateUser.FCMToken;
     const action = residentStatus === 'approve' ? 'RESIDENT_APPROVE' : 'RESIDENT_REJECT';
     let payload = {
-        action
+        action: action
     };
     sendNotification(token, action, JSON.stringify(payload));
 
@@ -258,7 +258,7 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
     const token = isUpdateUser.FCMToken;
     const action = guardStatus === 'approve' ? 'GUARD_APPROVE' : 'GUARD_REJECT';
     let payload = {
-        action
+        action: action
     };
     sendNotification(token, action, JSON.stringify(payload));
 
