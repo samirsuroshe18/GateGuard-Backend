@@ -63,6 +63,28 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
+    // Iterate through societyApartments and add members
+    const updatedApartments = await Promise.all(
+        societyDetails?.societyApartments.map(async (apartment) => {
+            // Query ProfileVerification model to find members matching the criteria
+            const members = await ProfileVerification.find({
+                societyName: societyDetails.societyName,
+                societyBlock: apartment.societyBlock,
+                apartment: apartment.apartment,
+            }); // Select only the 'user' field
+
+            console.log(members);
+            // Return updated apartment object
+            return {
+                ...apartment.toObject(), // Convert Mongoose object to plain JS object
+                members: members,
+            };
+        })
+    );
+
+    // Update societyDetails with the modified societyApartments array
+    societyDetails.societyApartments = updatedApartments;
+
     const deliveryEntry = await DeliveryEntry.create({
         name,
         mobNumber,
@@ -168,6 +190,37 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
+    // Iterate through societyApartments and add members
+    const updatedApartments = await Promise.all(
+        societyDetails?.societyApartments.map(async (apartment) => {
+            // Query ProfileVerification model to find members matching the criteria
+            const members = await ProfileVerification.find({
+                societyName: societyDetails.societyName,
+                societyBlock: apartment.societyBlock,
+                apartment: apartment.apartment,
+            }).populate('user');
+
+            // console.log(`members :\nstart..\n\n ${members.map((item) => item.user)}\n\nend...`);
+            const filteredData = members.map(item => {
+                return {
+                    _id: item.user._id,
+                    email: item.user.email,
+                    userName: item.user.userName,
+                    phoneNo: item.user.phoneNo,
+                    profile: item.user.profile
+                };
+            });
+            // Return updated apartment object
+            return {
+                ...apartment,
+                members: filteredData,
+            };
+        })
+    );
+
+    // Update societyDetails with the modified societyApartments array
+    societyDetails.societyApartments = updatedApartments;
+
     const deliveryEntry = await DeliveryEntry.create({
         name,
         mobNumber,
@@ -272,6 +325,32 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 preserveNullAndEmptyArrays: true
             }
         },
+        // Ensure that members field is projected correctly
+        {
+            $project: {
+                _id: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                societyDetails: {
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates",
+                    societyApartments: {
+                        societyBlock: "$societyDetails.societyApartments.societyBlock",
+                        apartment: "$societyDetails.societyApartments.apartment",
+                        entryStatus: "$societyDetails.societyApartments.entryStatus",
+                        members: "$societyDetails.societyApartments.members", // Ensure members field is included
+                    }
+                },
+            }
+        },
         {
             $lookup: {
                 from: "users",
@@ -326,15 +405,14 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 preserveNullAndEmptyArrays: true
             }
         },
-        // Rebuild societyApartments array
         {
             $group: {
                 _id: {
-                    id: "$_id", // group by document ID
+                    id: "$_id",
                     societyName: "$societyDetails.societyName",
                     societyGates: "$societyDetails.societyGates"
                 },
-                societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
+                societyApartments: { $push: "$societyDetails.societyApartments" },
                 name: { $first: "$name" },
                 mobNumber: { $first: "$mobNumber" },
                 profileImg: { $first: "$profileImg" },
@@ -351,7 +429,6 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 hasExited: { $first: "$hasExited" }
             }
         },
-        // Rebuild societyDetails field
         {
             $project: {
                 _id: "$_id.id",

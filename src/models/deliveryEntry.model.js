@@ -10,6 +10,9 @@ const societyDetails = new Schema({
             {
                 societyBlock: String,
                 apartment: String,
+                members: {
+                    type: [{}]
+                },
                 entryStatus: {
                     status: {
                         type: String,
