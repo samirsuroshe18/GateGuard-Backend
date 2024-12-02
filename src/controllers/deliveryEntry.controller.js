@@ -65,25 +65,34 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
 
     // Iterate through societyApartments and add members
     const updatedApartments = await Promise.all(
-        societyDetails?.societyApartments.map(async (apartment) => {
+        JSON.parse(societyDetails)?.societyApartments.map(async (apartment) => {
             // Query ProfileVerification model to find members matching the criteria
             const members = await ProfileVerification.find({
-                societyName: societyDetails.societyName,
+                societyName: JSON.parse(societyDetails).societyName,
                 societyBlock: apartment.societyBlock,
                 apartment: apartment.apartment,
-            }); // Select only the 'user' field
-
-            console.log(members);
+            }).populate('user');
+            
+            const filteredData = members.map(item => {
+                return {
+                    _id: item.user._id,
+                    email: item.user.email,
+                    userName: item.user.userName,
+                    phoneNo: item.user.phoneNo,
+                    profile: item.user.profile
+                };
+            });
+            
             // Return updated apartment object
             return {
-                ...apartment.toObject(), // Convert Mongoose object to plain JS object
-                members: members,
+                ...apartment,
+                members: filteredData,
             };
         })
     );
 
     // Update societyDetails with the modified societyApartments array
-    societyDetails.societyApartments = updatedApartments;
+    JSON.parse(societyDetails).societyApartments = updatedApartments;
 
     const deliveryEntry = await DeliveryEntry.create({
         name,
