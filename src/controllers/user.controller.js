@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config()
 import asyncHandler from '../utils/asynchandler.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
@@ -316,20 +318,25 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
+    
     const { userName } = req.body;
     const file = req.file;
 
     if (file) {
-        const path = `public\\images\\${req.user.profile.split('/').pop()}`;
-        if (fs.existsSync(path)) {
-            fs.unlinkSync(path)//remove the locally saved temporary files as the upload operation got successfull
+        const profile = process.env.DOMAIN;
+        if (req.user?.profile?.includes(profile)) {
+            const path = `public\\images\\${req.user.profile.split('/').pop()}`;
+            if (fs.existsSync(path)) {
+                fs.unlinkSync(path)//remove the locally saved temporary files as the upload operation got successfull
+            }
         }
-        const profile = `${process.env.DOMAIN}/images/${req.file.filename}`;
+        
+        const profileUrl = `${process.env.DOMAIN}/images/${req.file.filename}`;
 
         const user = await User.findByIdAndUpdate(req.user?._id, {
             $set: {
                 userName: userName || req.user.userName,
-                profile
+                profile: profileUrl
             }
         }, { new: true }).select("-password -refreshToken");
 
