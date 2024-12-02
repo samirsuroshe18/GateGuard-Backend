@@ -331,7 +331,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
             }
         }
         
-        const profileUrl = `${process.env.DOMAIN}/images/${req.file.filename}`;
+        const profileUrl = `${process.env.DOMAIN_NAME}/images/${req.file.filename}`;
 
         const user = await User.findByIdAndUpdate(req.user?._id, {
             $set: {
