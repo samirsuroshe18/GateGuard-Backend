@@ -8,6 +8,7 @@ import {
     denyDeliveryBySecurity,
     exitEntry,
     getCabEntries,
+    getCheckoutHistroy,
     getCurrentDeliveryEntries,
     getDeliveryAllowedEntries,
     getDeliveryEntries,
@@ -37,6 +38,7 @@ router.route('/get-allowed-other-entries').get(verifyJwt, getOtherEntries);
 router.route('/get-allowed-delivery-entries').get(verifyJwt, getDeliveryEntries);
 router.route('/exit-entry').post(verifyJwt, exitEntry);
 router.route('/get-service-entries').get(verifyJwt, getDeliveryServiceRequest);
+router.route('/get-checkout-history').get(verifyJwt, getCheckoutHistroy);
 
 //For residents
 
