@@ -36,6 +36,8 @@ import deliveryEntryRouter from './routes/deliveryEntry.routes.js';
 import checkInRouter from './routes/checkInWithoutCode.routes.js';
 import checkInByCodeRouter from './routes/checkInByCode.routes.js';
 import invitevisitorsRoter from './routes/inviteVisitors.routes.js';
+import adminRouter from './routes/admin.routes.js';
+import residentRouter from './routes/resident.routes.js';
 
 
 //Routes declaration
@@ -47,6 +49,8 @@ app.use("/api/v1/delivery-entry", deliveryEntryRouter);
 app.use("/api/v1/check-in", checkInRouter);
 app.use("/api/v1/check-in-by-code", checkInByCodeRouter);
 app.use("/api/v1/invite-visitors", invitevisitorsRoter);
+app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/resident", residentRouter);
 
 // Custom error handeling
 app.use((err, req, res, next) => {
