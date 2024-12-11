@@ -245,7 +245,8 @@ const logoutUser = asyncHandler(async (req, res) => {
         req.user._id,
         {
             $unset: {
-                refreshToken: 1
+                refreshToken: 1,
+                FCMToken: 1
             }
         },
         {
@@ -313,7 +314,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
             residentStatus: society ? society.toObject().residentStatus : null,
             guardStatus: society ? society.toObject().guardStatus : null,
             gateAssign: society ? society.toObject().gateAssign : null,
-        }, "Current user serched successfully")
+        }, "Current user fetched successfully")
     );
 });
 

@@ -180,6 +180,10 @@ const verifyResidentRequest = asyncHandler(async (req, res) => {
             checkInCodeExpiryDate: null
         });
 
+        if (!checkInCode) {
+            throw new ApiError(500, "Something went wrong");
+        }
+
     } else {
         requestExists.residentStatus = 'rejected'
     }
@@ -240,6 +244,11 @@ const verifySecurityRequest = asyncHandler(async (req, res) => {
             checkInCodeStartDate: new Date(),
             checkInCodeExpiryDate: null,
         });
+
+        if (!checkInCode) {
+            throw new ApiError(500, "Something went wrong");
+        }
+        
     } else {
         requestExists.guardStatus = 'rejected'
     }

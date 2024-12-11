@@ -4,7 +4,6 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { PreApproved } from '../models/preApproved.model.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
-import { User } from '../models/user.model.js';
 import { sendNotification } from '../utils/sendResidentNotification.js';
 
 
