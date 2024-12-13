@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
+import {verifyResident} from "../middlewares/resiedent.middleware.js";
 import { getApartmentMembers } from "../controllers/resident.controller.js";
 
 const router = Router();
