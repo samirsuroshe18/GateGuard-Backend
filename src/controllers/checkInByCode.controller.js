@@ -12,7 +12,7 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
     const security = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
 
     if (!security) {
-        throw new ApiError(500, `You are not security guard`);
+        throw new ApiError(500, `Access Denied: You are no longer a registered security guard of this society`);
     }
 
     const checkInCodeEarly = await CheckInCode.findOne({

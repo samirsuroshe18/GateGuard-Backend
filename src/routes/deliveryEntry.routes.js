@@ -21,29 +21,31 @@ import {
     waitingForResidentApprovalEntries
 } from "../controllers/deliveryEntry.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
+import { verifyGuard } from "../middlewares/guard.middleware.js";
+import { verifyResident } from "../middlewares/resiedent.middleware.js";
 
 const router = Router();
 
-router.route('/add-delivery-entry').post(verifyJwt, upload.single("profileImg"), addDeliveryEntry);
-router.route('/add-delivery-entry-2').post(verifyJwt, addDeliveryEntryStringImg);
-router.route('/approve-delivery').post(verifyJwt, approveDelivery);
-router.route('/reject-delivery').post(verifyJwt, rejectDelivery);
-router.route('/get-delivery-waiting-entries').get(verifyJwt, waitingForResidentApprovalEntries);
-router.route('/allow-delivery-entries').post(verifyJwt, allowDeliveryBySecurity);
-router.route('/deny-delivery-entries').post(verifyJwt, denyDeliveryBySecurity);
-router.route('/get-allowed-entries').get(verifyJwt, getDeliveryAllowedEntries);
-router.route('/get-allowed-guest-entries').get(verifyJwt, getGuestEntries);
-router.route('/get-allowed-cab-entries').get(verifyJwt, getCabEntries);
-router.route('/get-allowed-other-entries').get(verifyJwt, getOtherEntries);
-router.route('/get-allowed-delivery-entries').get(verifyJwt, getDeliveryEntries);
-router.route('/exit-entry').post(verifyJwt, exitEntry);
-router.route('/get-service-entries').get(verifyJwt, getDeliveryServiceRequest);
-router.route('/get-checkout-history').get(verifyJwt, getCheckoutHistroy);
+router.route('/add-delivery-entry').post(verifyJwt, verifyGuard, upload.single("profileImg"), addDeliveryEntry);
+router.route('/add-delivery-entry-2').post(verifyJwt, verifyGuard, addDeliveryEntryStringImg);
+router.route('/get-delivery-waiting-entries').get(verifyJwt, verifyGuard, waitingForResidentApprovalEntries);
+router.route('/allow-delivery-entries').post(verifyJwt, verifyGuard, allowDeliveryBySecurity);
+router.route('/deny-delivery-entries').post(verifyJwt, verifyGuard, denyDeliveryBySecurity);
+router.route('/get-allowed-entries').get(verifyJwt, verifyGuard, getDeliveryAllowedEntries);
+router.route('/get-allowed-guest-entries').get(verifyJwt, verifyGuard, getGuestEntries);
+router.route('/get-allowed-cab-entries').get(verifyJwt, verifyGuard, getCabEntries);
+router.route('/get-allowed-other-entries').get(verifyJwt, verifyGuard, getOtherEntries);
+router.route('/get-allowed-delivery-entries').get(verifyJwt, verifyGuard, getDeliveryEntries);
+router.route('/exit-entry').post(verifyJwt, verifyGuard, exitEntry);
+router.route('/get-checkout-history').get(verifyJwt, verifyGuard, getCheckoutHistroy);
 
 //For residents
 
-router.route('/get-current').get(verifyJwt, getCurrentDeliveryEntries);
-router.route('/get-past').get(verifyJwt, getPastDeliveryEntries);
-router.route('/get-denied').get(verifyJwt, getDeniedDeliveryEntries);
+router.route('/approve-delivery').post(verifyJwt, verifyResident, approveDelivery);
+router.route('/reject-delivery').post(verifyJwt, verifyResident, rejectDelivery);
+router.route('/get-service-entries').get(verifyJwt, verifyResident, getDeliveryServiceRequest);
+router.route('/get-current').get(verifyJwt, verifyResident, getCurrentDeliveryEntries);
+router.route('/get-past').get(verifyJwt, verifyResident, getPastDeliveryEntries);
+router.route('/get-denied').get(verifyJwt, verifyResident, getDeniedDeliveryEntries);
 
 export default router;

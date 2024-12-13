@@ -7,7 +7,7 @@ const getApartmentMembers = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
     if (!user) {
-        throw new ApiError(500, "No resident found");
+        throw new ApiError(500, "Access Denied: You are no longer a registered resident of this society");
     }
 
     const members = await ProfileVerification.aggregate([

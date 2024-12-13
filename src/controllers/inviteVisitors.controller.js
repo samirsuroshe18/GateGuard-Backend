@@ -13,7 +13,7 @@ const addPreApproval = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
     if (!user) {
-        throw new ApiError(404, "User not found");
+        throw new ApiError(404, "Access Denied: You are no longer a registered resident of this society");
     }
 
     const preApprovalEntry = await CheckInCode.create({
@@ -175,6 +175,9 @@ const reSchedule = asyncHandler(async (req, res) => {
 
 const getExpectedEntry = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
+    if (!user) {
+        throw new ApiError(500, "No resident found");
+    }
 
     const checkInCode = await CheckInCode.aggregate([
         {

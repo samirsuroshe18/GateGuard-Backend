@@ -4,7 +4,7 @@ import { getApartmentMembers } from "../controllers/resident.controller.js";
 
 const router = Router();
 
-router.route('/get-members').get(verifyJwt, getApartmentMembers);
+router.route('/get-members').get(verifyJwt, verifyResident, getApartmentMembers);
 
 
 export default router;

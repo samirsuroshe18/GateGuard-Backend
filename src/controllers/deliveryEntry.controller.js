@@ -2880,6 +2880,9 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
 
 const getPastDeliveryEntries = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
+    if (!user) {
+        throw new ApiError(500, "No resident found");
+    }
 
     const deliveryEntry = await DeliveryEntry.aggregate([
         {
@@ -3168,6 +3171,9 @@ const getPastDeliveryEntries = asyncHandler(async (req, res) => {
 
 const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
+    if (!user) {
+        throw new ApiError(500, "No resident found");
+    }
 
     const deliveryEntry = await DeliveryEntry.aggregate([
         {
