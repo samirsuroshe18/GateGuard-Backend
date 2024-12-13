@@ -187,7 +187,7 @@ const removeGuard = asyncHandler(async (req, res) => {
     }
 
     return res.status(200).json(
-        new ApiResponse(200, filteredMembers, "Guard deleted successfully.")
+        new ApiResponse(200, {}, "Guard deleted successfully.")
     );
 });
 
