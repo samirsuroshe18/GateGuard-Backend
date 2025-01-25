@@ -73,6 +73,39 @@ const checkInCodeSchema = new Schema({
         trim: true,
     },
 
+    gatepassAptDetails: {
+        type: {
+            societyName: {
+                type: String,
+                required: true,
+            },
+            societyApartments: {
+                type: [
+                    {
+                        societyBlock: String,
+                        apartment: String,
+                    }
+                ],
+                default: [],
+            },
+        },
+    },
+
+    addressProof: {
+        type: String,
+        trim: true,
+    },
+
+    address:{
+        type: String,
+        trim: true,
+    },
+
+    gender : {
+        type: String,
+        trim: true,
+    },
+
     checkInCode: {
         type: String,
         trim: true,

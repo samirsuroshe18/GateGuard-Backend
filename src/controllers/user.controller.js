@@ -5,11 +5,11 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { User } from '../models/user.model.js';
 import mailSender from '../utils/mailSender.js';
-import fs from 'fs';
 import { sendNotification, sendNotificationCancel } from '../utils/sendResidentNotification.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
+import { deleteCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -141,9 +141,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
     if (existedUser && existedUser.isGoogleVerified === true && existedUser.isVerified === true) {
         const { accessToken, refreshToken } = await generateAccessAndRefreshToken(existedUser._id);
 
-        existedUser.userName = userName;
         existedUser.email = email;
-        existedUser.profile = profile;
         existedUser.FCMToken = FCMToken;
         await existedUser.save({ validateBeforeSave: false });
 
@@ -319,25 +317,22 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-    
+
     const { userName } = req.body;
     const file = req.file;
 
     if (file) {
-        const profile = process.env.DOMAIN;
-        if (req.user?.profile?.includes(profile)) {
-            const path = `public\\images\\${req.user.profile.split('/').pop()}`;
-            if (fs.existsSync(path)) {
-                fs.unlinkSync(path)//remove the locally saved temporary files as the upload operation got successfull
-            }
+        await deleteCloudinary(req.user.profile);
+        const profileImg = await uploadOnCloudinary(file.path);
+
+        if (!profileImg?.url) {
+            throw new ApiError(400, "Error while uploading on profile");
         }
-        
-        const profileUrl = `${process.env.DOMAIN_NAME}/images/${req.file.filename}`;
 
         const user = await User.findByIdAndUpdate(req.user?._id, {
             $set: {
                 userName: userName || req.user.userName,
-                profile: profileUrl
+                profile: profileImg?.url || ''
             }
         }, { new: true }).select("-password -refreshToken");
 
@@ -393,23 +388,51 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const addExtraInfo = asyncHandler(async (req, res) => {
-    const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign } = req.body;
+    const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign, startDate, endDate } = req.body;
     const admin = await User.findOne({ role: 'admin' });
     const adminSociety = await ProfileVerification.findOne({ user: admin?._id });
     const user = req.user;
+    const file = req.file;
+
+    let document;
+    if(file){
+        document = await uploadOnCloudinary(file.path);
+    }
+
+    if (!document?.url && profileType === 'Resident') {
+        throw new ApiError(400, "Error while uploading on profile");
+    }
 
     user.phoneNo = phoneNo;
 
     if (profileType === 'Resident') {
-        const residentRequest = await ProfileVerification.create({
-            user: user._id,
-            profileType,
-            societyName,
-            societyBlock,
-            apartment,
-            ownership: ownership.toLowerCase(),
-            residentStatus: user.role === 'admin' ? 'approve' : 'pending'
-        });
+        let data = {};
+        if (ownership == 'Owner') {
+            data = {
+                user: user._id,
+                profileType,
+                societyName,
+                societyBlock,
+                apartment,
+                ownership: ownership.toLowerCase(),
+                ownershipDocument: document?.url,
+                residentStatus: user.role === 'admin' ? 'approve' : 'pending',
+            }
+        }else{
+            data = {
+                user: user._id,
+                profileType,
+                societyName,
+                societyBlock,
+                apartment,
+                ownership: ownership.toLowerCase(),
+                startDate: new Date(startDate),
+                endDate: new Date(endDate),
+                tenantAgreement: document?.url,
+                residentStatus: user.role === 'admin' ? 'approve' : 'pending',
+            }
+        }
+        const residentRequest = await ProfileVerification.create(data);
 
         if (!residentRequest) {
             throw new ApiError(500, "Something went wrong");

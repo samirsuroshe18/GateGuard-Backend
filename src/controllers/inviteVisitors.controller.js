@@ -7,6 +7,7 @@ import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import { PreApproved } from '../models/preApproved.model.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../utils/sendResidentNotification.js';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
 
 const addPreApproval = asyncHandler(async (req, res) => {
     const { name, mobNumber, profileImg, companyName, companyLogo, serviceName, serviceLogo, vehicleNo, entryType, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate, } = req.body;
@@ -134,13 +135,118 @@ const exitEntry = asyncHandler(async (req, res) => {
 
     const fcm = members.map(item => item.user.FCMToken);
 
+    let profile;
+
+    if (result.entryType == 'service') {
+        profile = await ProfileVerification.aggregate([
+            {
+                $match: {
+                    residentStatus: 'approve',
+                    societyName: result.societyName,
+                    $or: result.gatepassAptDetails.societyApartments.map(apartment => ({
+                        societyBlock: apartment.societyBlock,
+                        apartment: apartment.apartment,
+                    })),
+                },
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    let: { userId: "$user" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$_id", "$$userId"] }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                userName: 1,
+                                profile: 1,
+                                email: 1,
+                                role: 1,
+                                phoneNo: 1,
+                                FCMToken: 1
+                            }
+                        }
+                    ],
+                    as: "user"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$user",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    user: 1
+                }
+            }
+        ]);
+    } else {
+        profile = await ProfileVerification.aggregate([
+            {
+                $match: {
+                    societyName: result.societyName,
+                    societyBlock: result.blockName,
+                    apartment: result.apartment,
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    let: { userId: "$user" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$_id", "$$userId"] }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                userName: 1,
+                                profile: 1,
+                                email: 1,
+                                role: 1,
+                                phoneNo: 1,
+                                FCMToken: 1
+                            }
+                        }
+                    ],
+                    as: "user"
+                }
+            },
+            {
+                // Unwind the user array so that we only get the user object, not an array
+                $unwind: {
+                    path: "$user",
+                    preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
+                }
+            },
+            {
+                $project: {
+                    user: 1
+                }
+            }
+        ]);
+    }
+
+    const FCMTokens = profile
+        .map((item) => item.user?.FCMToken)
+        .filter((token) => token != null);
+    console.log(FCMTokens);
+
     let payload = {
         deliveryName: result.name,
-        companyName: result.companyName,
+        companyName: result?.companyName || result?.serviceName,
         action: 'NOTIFY_EXIT_ENTRY'
     };
 
-    fcm.forEach(token => {
+    FCMTokens.forEach(token => {
         sendNotification(token, payload.action, JSON.stringify(payload));
     });
 
@@ -497,11 +603,195 @@ const getPastEntry = asyncHandler(async (req, res) => {
     );
 });
 
+const addGatePass = asyncHandler(async (req, res) => {
+    const { name, mobNumber, serviceName, gender, serviceLogo, address, entryType, gatepassApiDetails, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate } = req.body;
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+    console.log(JSON.parse(gatepassApiDetails));
+
+    if (!user) {
+        throw new ApiError(404, "Access Denied: You are no longer a registered resident of this society");
+    }
+
+    const uploadedFiles = [];
+
+    // Upload files to Cloudinary
+    for (let file of req.files) {
+        const document = await uploadOnCloudinary(file.path);
+
+        uploadedFiles.push({
+            url: document.url,
+        });
+    }
+
+    const preApprovalEntry = await CheckInCode.create({
+        approvedBy: req.user._id,
+        name: name,
+        mobNumber: mobNumber,
+        profileImg: uploadedFiles[0].url,
+        serviceName: serviceName,
+        serviceLogo: serviceLogo,
+        gender: gender,
+        entryType: entryType,
+        address: address,
+        addressProof: uploadedFiles[1].url,
+        gatepassAptDetails: {
+            societyName: user.societyName,
+            societyApartments: JSON.parse(gatepassApiDetails),
+        },
+        societyName: user.societyName,
+        checkInCode: await generateCheckInCode(user.societyName),
+        checkInCodeStart: new Date(checkInCodeStart),
+        checkInCodeExpiry: new Date(checkInCodeExpiry),
+        checkInCodeStartDate: new Date(checkInCodeStartDate),
+        checkInCodeExpiryDate: new Date(checkInCodeExpiryDate),
+    });
+
+    if (!preApprovalEntry) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    const checkInCode = await CheckInCode.aggregate([
+        {
+            $match: {
+                _id: preApprovalEntry._id
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                gender: 1,
+                entryType: 1,
+                address: 1,
+                addressProof: 1,
+                societyName: 1,
+                gatepassAptDetails: 1,
+                checkInCode: 1,
+                checkInCodeStart: 1,
+                checkInCodeExpiry: 1,
+                checkInCodeStartDate: 1,
+                checkInCodeExpiryDate: 1,
+            },
+        },
+    ]);
+
+    return res.status(200).json(
+        new ApiResponse(200, checkInCode[0], "Service added successfully")
+    );
+});
+
+const getGatePass = asyncHandler(async (req, res) => {
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+    if (!user) {
+        throw new ApiError(404, "Access Denied: You are no longer a registered resident of this society");
+    }
+
+    const checkInCode = await CheckInCode.aggregate([
+        {
+            $match: {
+                societyName: user.societyName,
+                entryType: 'service',
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                gender: 1,
+                entryType: 1,
+                address: 1,
+                addressProof: 1,
+                societyName: 1,
+                gatepassAptDetails: 1,
+                checkInCode: 1,
+                checkInCodeStart: 1,
+                checkInCodeExpiry: 1,
+                checkInCodeStartDate: 1,
+                checkInCodeExpiryDate: 1,
+            },
+        },
+    ]);
+
+    return res.status(200).json(
+        new ApiResponse(200, checkInCode, "Gatepass entry fetched successfully")
+    );
+});
+
 export {
     addPreApproval,
     reSchedule,
     getExpectedEntry,
     exitEntry,
     getCurrentEntry,
-    getPastEntry
+    getPastEntry,
+    addGatePass,
+    getGatePass,
 }

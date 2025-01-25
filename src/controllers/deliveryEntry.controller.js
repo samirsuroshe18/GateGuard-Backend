@@ -8,10 +8,20 @@ import { User } from '../models/user.model.js';
 import mongoose from 'mongoose'
 import { generateNotificationId } from '../utils/generateCheckInCode.js';
 import { PreApproved } from '../models/preApproved.model.js';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
 
 const addDeliveryEntry = asyncHandler(async (req, res) => {
     const { name, mobNumber, companyName, companyLogo, serviceName, serviceLogo, accompanyingGuest, vehicleDetails, entryType, societyDetails } = req.body;
-    const profileImg = `${process.env.DOMAIN_NAME}/images/${req.file.filename}`;
+
+    if (!req.file) {
+        throw new ApiError(400, "File is missing");
+    }
+
+    const profileImg = await uploadOnCloudinary(req.file.path);
+
+    if (!profileImg.url) {
+        throw new ApiError(400, "Error while uploading on avatar");
+    }
 
     const profile = await ProfileVerification.aggregate([
         {
@@ -72,7 +82,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
                 societyBlock: apartment.societyBlock,
                 apartment: apartment.apartment,
             }).populate('user');
-            
+
             const filteredData = members.map(item => {
                 return {
                     _id: item.user._id,
@@ -82,7 +92,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
                     profile: item.user.profile
                 };
             });
-            
+
             // Return updated apartment object
             return {
                 ...apartment,
@@ -97,7 +107,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
     const deliveryEntry = await DeliveryEntry.create({
         name,
         mobNumber,
-        profileImg,
+        profileImg: profileImg?.url || '',
         companyName,
         companyLogo,
         serviceName,
@@ -915,6 +925,7 @@ const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
                 societyName: 1,
                 blockName: 1,
                 apartment: 1,
+                gatepassAptDetails: 1,
                 gateName: 1,
                 entryTime: 1,
                 exitTime: 1,
@@ -2867,7 +2878,111 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
         },
     ]);
 
-    const response = [...deliveryEntry, ...preApprovedEntry];
+    const preApprovedServiceEntry = await PreApproved.aggregate([
+        
+        {
+            $match: {
+                'allowedBy.status': 'approve',
+                hasExited: false,
+                societyName: user.societyName,
+                "gatepassAptDetails.societyApartments": {
+                    $elemMatch: {
+                        $or: [
+                            {
+                                "societyBlock": user.societyBlock,
+                                "apartment": user.apartment
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$allowedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "allowedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$allowedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                allowedBy: 1,
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                profileType: 1,
+                entryType: 1,
+                societyName: 1,
+                blockName: 1,
+                apartment: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+            },
+        },
+    ]);
+
+    console.log(preApprovedServiceEntry);
+    const response = [...deliveryEntry, ...preApprovedEntry, ...preApprovedServiceEntry];
 
     if (response.length <= 0) {
         throw new ApiError(500, "There is no entry");
@@ -3158,7 +3273,109 @@ const getPastDeliveryEntries = asyncHandler(async (req, res) => {
         },
     ]);
 
-    const response = [...deliveryEntry, ...preApprovedEntry];
+    const preApprovedServiceEntry = await PreApproved.aggregate([
+        {
+            $match: {
+                'allowedBy.status': 'approve',
+                hasExited: true,
+                societyName: user.societyName,
+                "gatepassAptDetails.societyApartments": {
+                    $elemMatch: {
+                        $or: [
+                            {
+                                "societyBlock": user.societyBlock,
+                                "apartment": user.apartment
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$approvedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "approvedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$approvedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$allowedBy.user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "allowedBy.user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$allowedBy.user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                allowedBy: 1,
+                approvedBy: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                profileType: 1,
+                entryType: 1,
+                societyName: 1,
+                blockName: 1,
+                apartment: 1,
+                entryTime: 1,
+                exitTime: 1,
+                hasExited: 1,
+            },
+        },
+    ]);
+
+    const response = [...deliveryEntry, ...preApprovedEntry, ...preApprovedServiceEntry];
 
     if (response.length <= 0) {
         throw new ApiError(500, "There is no entry");

@@ -61,6 +61,10 @@ const getPendingResidentRequest = asyncHandler(async (req, res) => {
                 societyBlock: 1,
                 apartment: 1,
                 ownership: 1,
+                startDate: 1,
+                endDate: 1,
+                tenantAgreement: 1,
+                ownershipDocument: 1,
                 residentStatus: 1,
                 createdAt: 1,
                 updatedAt: 1

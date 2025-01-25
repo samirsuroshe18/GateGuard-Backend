@@ -38,6 +38,24 @@ const profileVerificationSchema = new Schema({
         trim: true,
     },
 
+    startDate: {
+        type: Date,
+    },
+    
+    endDate: {
+        type: Date,
+    },
+
+    tenantAgreement: {
+        type: String,
+        trim: true,
+    },
+
+    ownershipDocument: {
+        type: String,
+        trim: true,
+    },
+
     residentStatus: {
         type: String,
         enum: ['none', 'pending', 'rejected', 'approve'],

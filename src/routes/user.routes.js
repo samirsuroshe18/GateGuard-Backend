@@ -19,7 +19,7 @@ router.route('/update-fcm').post(verifyJwt, updateFCMToken);
 router.route('/change-password').post(verifyJwt, changeCurrentPassword);
 router.route('/get-current-user').get(verifyJwt, getCurrentUser);
 router.route('/update-details').post(verifyJwt, upload.single("profile"), updateAccountDetails);
-router.route('/extra-info').post(verifyJwt, addExtraInfo);
+router.route('/extra-info').post(verifyJwt, upload.single("file"), addExtraInfo);
 router.route('/cancel-notification').post(cancelNotification);
 
 

@@ -6,7 +6,6 @@ import { PreApproved } from '../models/preApproved.model.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
 import { sendNotification } from '../utils/sendResidentNotification.js';
 
-
 const checkInByCodeEntry = asyncHandler(async (req, res) => {
     const { checkInCode } = req.body;
     const security = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
@@ -42,7 +41,7 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
 
     let residentOrSecurityImg = null;
     if (checkInCodeExist.profileType != null && checkInCodeExist.profileType == 'Resident' || checkInCodeExist.profileType == 'Security') {
-        const message = checkInCodeExist.profileType == 'Resident' ? "You are already registered as a resident. No new entry is required." : "You are already registered as a security guard. No new entry is required." ;
+        const message = checkInCodeExist.profileType == 'Resident' ? "You are already registered as a resident. No new entry is required." : "You are already registered as a security guard. No new entry is required.";
         return res.status(200).json(
             new ApiResponse(200, {}, message)
         );
@@ -62,17 +61,18 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         'allowedBy.user': req.user._id,
         name: checkInCodeExist.name,
         mobNumber: checkInCodeExist.mobNumber,
-        profileImg: residentOrSecurityImg != null ? residentOrSecurityImg : checkInCodeExist.profileImg,
-        companyName: checkInCodeExist.companyName,
-        companyLogo: checkInCodeExist.companyLogo,
-        serviceName: checkInCodeExist.serviceName,
-        serviceLogo: checkInCodeExist.serviceLogo,
-        'vehicleDetails.vehicleNumber': checkInCodeExist.vehicleNo,
-        entryType: checkInCodeExist.entryType,
-        profileType: checkInCodeExist.profileType,
-        societyName: checkInCodeExist.societyName,
-        blockName: checkInCodeExist.blockName,
-        apartment: checkInCodeExist.apartment,
+        profileImg: residentOrSecurityImg != null ? residentOrSecurityImg : checkInCodeExist?.profileImg,
+        companyName: checkInCodeExist?.companyName,
+        companyLogo: checkInCodeExist?.companyLogo,
+        serviceName: checkInCodeExist?.serviceName,
+        serviceLogo: checkInCodeExist?.serviceLogo,
+        'vehicleDetails.vehicleNumber': checkInCodeExist?.vehicleNo,
+        entryType: checkInCodeExist?.entryType,
+        profileType: checkInCodeExist?.profileType,
+        societyName: checkInCodeExist?.societyName,
+        blockName: checkInCodeExist?.blockName,
+        apartment: checkInCodeExist?.apartment,
+        gatepassAptDetails: checkInCodeExist?.gatepassAptDetails,
         gateName: security.gateAssign,
         entryTime: new Date(),
     });
@@ -81,55 +81,111 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
-    const profile = await ProfileVerification.aggregate([
-        {
-            $match: {
-                residentStatus: 'approve',
-                societyName: checkInCodeEntry.societyName,
-                societyBlock: checkInCodeEntry.blockName,
-                apartment: checkInCodeEntry.apartment
-            }
-        },
-        {
-            $lookup: {
-                from: "users",
-                let: { userId: "$user" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$_id", "$$userId"] }
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            userName: 1,
-                            profile: 1,
-                            email: 1,
-                            role: 1,
-                            phoneNo: 1,
-                            FCMToken: 1
-                        }
-                    }
-                ],
-                as: "user"
-            }
-        },
-        {
-            // Unwind the user array so that we only get the user object, not an array
-            $unwind: {
-                path: "$user",
-                preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
-            }
-        },
-        {
-            $project: {
-                user: 1
-            }
-        }
-    ]);
+    let profile;
 
-    const FCMTokens = profile.map((item) => item.user.FCMToken);
+    if (checkInCodeEntry.entryType == 'service') {
+        profile = await ProfileVerification.aggregate([
+            {
+                $match: {
+                    residentStatus: 'approve',
+                    societyName: checkInCodeEntry.societyName,
+                    $or: checkInCodeEntry.gatepassAptDetails.societyApartments.map(apartment => ({
+                        societyBlock: apartment.societyBlock,
+                        apartment: apartment.apartment,
+                    })),
+                },
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    let: { userId: "$user" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$_id", "$$userId"] }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                userName: 1,
+                                profile: 1,
+                                email: 1,
+                                role: 1,
+                                phoneNo: 1,
+                                FCMToken: 1
+                            }
+                        }
+                    ],
+                    as: "user"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$user",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    user: 1
+                }
+            }
+        ]);
+    } else {
+        profile = await ProfileVerification.aggregate([
+            {
+                $match: {
+                    residentStatus: 'approve',
+                    societyName: checkInCodeEntry.societyName,
+                    societyBlock: checkInCodeEntry.blockName,
+                    apartment: checkInCodeEntry.apartment
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    let: { userId: "$user" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$_id", "$$userId"] }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                userName: 1,
+                                profile: 1,
+                                email: 1,
+                                role: 1,
+                                phoneNo: 1,
+                                FCMToken: 1
+                            }
+                        }
+                    ],
+                    as: "user"
+                }
+            },
+            {
+                // Unwind the user array so that we only get the user object, not an array
+                $unwind: {
+                    path: "$user",
+                    preserveNullAndEmptyArrays: true  // This ensures documents without a matching user are kept
+                }
+            },
+            {
+                $project: {
+                    user: 1
+                }
+            }
+        ]);
+    }
+
+    const FCMTokens = profile
+  .map((item) => item.user?.FCMToken)
+  .filter((token) => token != null);
+    console.log(FCMTokens);
 
     let payload = {
         guardName: security.userName,

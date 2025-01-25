@@ -110,6 +110,24 @@ const preApprovedSchema = new Schema({
         default: false,
     },
 
+    gatepassAptDetails: {
+        type: {
+            societyName: {
+                type: String,
+                required: true,
+            },
+            societyApartments: {
+                type: [
+                    {
+                        societyBlock: String,
+                        apartment: String,
+                    }
+                ],
+                default: [],
+            },
+        },
+    },
+
 }, { timestamps: true });
 
 
