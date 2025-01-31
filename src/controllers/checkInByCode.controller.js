@@ -182,9 +182,7 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         ]);
     }
 
-    const FCMTokens = profile
-  .map((item) => item.user?.FCMToken)
-  .filter((token) => token != null);
+    const FCMTokens = profile.map((item) => item.user?.FCMToken).filter((token) => token != null);
     console.log(FCMTokens);
 
     let payload = {

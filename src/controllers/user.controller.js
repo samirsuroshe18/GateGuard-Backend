@@ -389,10 +389,58 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const addExtraInfo = asyncHandler(async (req, res) => {
     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign, startDate, endDate } = req.body;
-    const admin = await User.findOne({ role: 'admin' });
+    const admin = await User.find({ role: 'admin' });
     const adminSociety = await ProfileVerification.findOne({ user: admin?._id });
     const user = req.user;
     const file = req.file;
+
+    const profile = await ProfileVerification.aggregate([
+        {
+            $match: {
+                residentStatus: 'approve',
+                societyName: societyName,
+                $or: admin.map(adminUser => ({
+                    user: adminUser._id
+                })),
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$user" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                            FCMToken: 1
+                        }
+                    }
+                ],
+                as: "user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                user: 1
+            }
+        }
+    ]);
 
     let document;
     if(file){
@@ -498,8 +546,11 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     }
 
     // Send notification to admin if the user is not an admin
-    if (user.role !== 'admin' && admin && admin.FCMToken && adminSociety?.societyName === societyName) {
-        sendNotification(admin.FCMToken, payload.action, JSON.stringify(payload));
+    if (user.role !== 'admin' && profile.length > 0) {
+        const FCMTokens = profile.map((item) => item.user?.FCMToken).filter((token) => token != null);
+        FCMTokens.forEach(token => {
+            sendNotification(token, payload.action, JSON.stringify(payload));
+        });
     }
 
     const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
