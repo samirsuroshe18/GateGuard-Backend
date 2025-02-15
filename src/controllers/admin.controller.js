@@ -6,6 +6,7 @@ import { User } from '../models/user.model.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import mongoose from 'mongoose';
+import { Complaint } from '../models/complaint.model.js';
 
 const getAllResidents = asyncHandler(async (req, res) => {
     const admin = await ProfileVerification.findOne({ user: req.admin._id });
@@ -290,4 +291,21 @@ const removeAdmin = asyncHandler(async (req, res) => {
     );
 });
 
-export { getAllResidents, getAllGuards, removeResident, removeGuard, getAllAdmin, makeAdmin, removeAdmin }
+const getComplaints = asyncHandler(async (req, res) => { 
+    const society = await ProfileVerification.findOne({ user: req.user._id });
+
+    if (!society) {
+        throw new ApiError(404, "Profile is not found");
+    }
+
+    const updatedComplaint = await Complaint.find({ societyName: society.societyName })
+    .populate("responses.responseBy", "userName email profile role phoneNo") 
+    .populate("raisedBy", "userName email profile role phoneNo"); 
+
+
+    return res.status(200).json(
+        new ApiResponse(200, {complaints:updatedComplaint, user:req.user}, "Complaint submitted successfully")
+    );
+});
+
+export { getAllResidents, getAllGuards, removeResident, removeGuard, getAllAdmin, makeAdmin, removeAdmin, getComplaints }

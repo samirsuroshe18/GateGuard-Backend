@@ -38,6 +38,7 @@ import checkInByCodeRouter from './routes/checkInByCode.routes.js';
 import invitevisitorsRoter from './routes/inviteVisitors.routes.js';
 import adminRouter from './routes/admin.routes.js';
 import residentRouter from './routes/resident.routes.js';
+import complaintRouter from './routes/complaint.routes.js';
 
 
 //Routes declaration
@@ -51,6 +52,7 @@ app.use("/api/v1/check-in-by-code", checkInByCodeRouter);
 app.use("/api/v1/invite-visitors", invitevisitorsRoter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/resident", residentRouter);
+app.use("/api/v1/complaint", complaintRouter);
 
 // Custom error handeling
 app.use((err, req, res, next) => {
