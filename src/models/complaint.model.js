@@ -8,8 +8,7 @@ const ComplaintSchema = new Schema({
 
     societyName : {
         type: String,
-        required: true,
-        unique: true
+        required: true
     },
 
     area: {

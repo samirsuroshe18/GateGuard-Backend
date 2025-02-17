@@ -131,4 +131,19 @@ const reopenComplaint = asyncHandler(async (req, res) => {
     );
 });
 
-export { submitComplaint, getComplaints, getComplaintDetails, addResponse, resolveComplaint, reopenComplaint };
+const getResponse = asyncHandler(async (req, res) => {
+
+    const complaint = await Complaint.findOne({ complaintId: req.params.id })
+    .populate("responses.responseBy", "userName email profile role phoneNo")
+    .populate("raisedBy", "userName email profile role phoneNo");
+
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, complaint, "Response added successfully")
+    );
+});
+
+export { submitComplaint, getComplaints, getComplaintDetails, addResponse, resolveComplaint, reopenComplaint, getResponse };
