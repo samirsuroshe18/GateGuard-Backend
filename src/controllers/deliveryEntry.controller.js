@@ -219,7 +219,6 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
                 apartment: apartment.apartment,
             }).populate('user');
 
-            // console.log(`members :\nstart..\n\n ${members.map((item) => item.user)}\n\nend...`);
             const filteredData = members.map(item => {
                 return {
                     _id: item.user._id,
@@ -2981,7 +2980,6 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
         },
     ]);
 
-    console.log(preApprovedServiceEntry);
     const response = [...deliveryEntry, ...preApprovedEntry, ...preApprovedServiceEntry];
 
     if (response.length <= 0) {

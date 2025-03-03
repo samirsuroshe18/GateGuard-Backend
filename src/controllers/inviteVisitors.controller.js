@@ -238,7 +238,6 @@ const exitEntry = asyncHandler(async (req, res) => {
     const FCMTokens = profile
         .map((item) => item.user?.FCMToken)
         .filter((token) => token != null);
-    console.log(FCMTokens);
 
     let payload = {
         deliveryName: result.name,
@@ -606,7 +605,6 @@ const getPastEntry = asyncHandler(async (req, res) => {
 const addGatePass = asyncHandler(async (req, res) => {
     const { name, mobNumber, serviceName, gender, serviceLogo, address, entryType, gatepassApiDetails, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate } = req.body;
     const user = await ProfileVerification.findOne({ user: req.user._id });
-    console.log(JSON.parse(gatepassApiDetails));
 
     if (!user) {
         throw new ApiError(404, "Access Denied: You are no longer a registered resident of this society");
