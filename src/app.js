@@ -39,7 +39,7 @@ import invitevisitorsRoter from './routes/inviteVisitors.routes.js';
 import adminRouter from './routes/admin.routes.js';
 import residentRouter from './routes/resident.routes.js';
 import complaintRouter from './routes/complaint.routes.js';
-
+import noticeBoardRouter from './routes/noticeBoard.routes.js';
 
 //Routes declaration
 app.use("/api/v1/users", userRouter);
@@ -53,6 +53,7 @@ app.use("/api/v1/invite-visitors", invitevisitorsRoter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/resident", residentRouter);
 app.use("/api/v1/complaint", complaintRouter);
+app.use("/api/v1/notice", noticeBoardRouter);
 
 // Custom error handeling
 app.use((err, req, res, next) => {
