@@ -2,8 +2,10 @@ import asyncHandler from "../utils/asynchandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import { NoticeBoard } from "../models/noticeBoard.model.js";
-import {uploadOnCloudinary} from "../utils/cloudinary.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
+import { ProfileVerification } from "../models/profileVerification.model.js";
+import {sendNotification} from "../utils/sendResidentNotification.js"
 
 const createNotice = asyncHandler(async (req, res, next) => {
     const { title, description, category } = req.body;
@@ -23,11 +25,26 @@ const createNotice = asyncHandler(async (req, res, next) => {
         publishedBy: req.user._id,
     });
 
-    const existNotice = await NoticeBoard.findById(notice._id).populate("publishedBy", "userName email")
+    const existNotice = await NoticeBoard.findById(notice._id).populate("publishedBy", "userName email FCMToken")
 
     if (!existNotice) {
         throw new ApiError(400, "Notice creation failed");
     }
+
+    const users = await ProfileVerification.find({ societyName: existNotice.society }).populate("user", "FCMToken");
+
+    const FCMTokens = users
+            .filter((item) => item.user?.FCMToken && existNotice.publishedBy.FCMToken !== item.user?.FCMToken)
+            .map((item) => item.user.FCMToken);
+
+    let payload = {
+        ...existNotice.toObject(),
+        action: 'NOTIFY_NOTICE_CREATED'
+    };
+
+    FCMTokens.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
 
     return res.status(201).json(
         new ApiResponse(200, existNotice, "Notice created successfully")
@@ -36,9 +53,9 @@ const createNotice = asyncHandler(async (req, res, next) => {
 
 const getNotices = asyncHandler(async (req, res, next) => {
     const society = req.member?.societyName || '';
-    
+
     const notices = await NoticeBoard.find({ isDeleted: false, society })
-        .populate("publishedBy", "userName email") 
+        .populate("publishedBy", "userName email")
         .populate("readBy", "userName email");
 
     return res.status(200).json(
@@ -51,7 +68,7 @@ const getNotice = asyncHandler(async (req, res, next) => {
 
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
     const notice = await NoticeBoard.findOneAndUpdate(
-        {_id: id, isDeleted: false, society},
+        { _id: id, isDeleted: false, society },
         {
             $addToSet: { readBy: req.user._id }
         },
@@ -86,15 +103,15 @@ const updateNotice = asyncHandler(async (req, res, next) => {
         description,
         updatedBy: req.user._id,
     };
-    
+
     // ✅ Only add `image` if it's defined (avoids setting `undefined`).
     if (image) {
         updateData.image = image;
     } else {
         updateData.$unset = { image: "" }; // ✅ Removes `image` field from the document
     }
-    
-    const notice = await NoticeBoard.findOneAndUpdate({_id: id, isDeleted: false, society}, updateData, { new: true });
+
+    const notice = await NoticeBoard.findOneAndUpdate({ _id: id, isDeleted: false, society }, updateData, { new: true });
 
     if (!notice) {
         throw new ApiError(404, "Notice not found");
@@ -110,7 +127,7 @@ const deleteNotice = asyncHandler(async (req, res, next) => {
     const society = req.member?.societyName || '';
 
     const notice = await NoticeBoard.findOneAndUpdate(
-        {_id:id, isDeleted: false, society},
+        { _id: id, isDeleted: false, society },
         {
             isDeleted: true,
             deletedAt: new Date(),
@@ -131,7 +148,7 @@ const deleteNotice = asyncHandler(async (req, res, next) => {
 const isUnreadNotice = asyncHandler(async (req, res) => {
     const society = req.member?.societyName || '';
 
-    const unreadNotices = await NoticeBoard.find({ isDeleted: false, society, readBy: { $ne: {_id:req.user._id} } });
+    const unreadNotices = await NoticeBoard.find({ isDeleted: false, society, readBy: { $ne: { _id: req.user._id } } });
 
     return res.status(200).json(
         new ApiResponse(200, unreadNotices, "Unread notices fetched successfully")

@@ -4,6 +4,7 @@ import ApiResponse from '../utils/ApiResponse.js';
 import { Complaint } from '../models/complaint.model.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
+import { sendNotification } from '../utils/sendResidentNotification.js'
 
 const submitComplaint = asyncHandler(async (req, res) => {
     const { area, category, subCategory, description } = req.body;
@@ -22,7 +23,7 @@ const submitComplaint = asyncHandler(async (req, res) => {
         document = await uploadOnCloudinary(file.path);
     }
 
-    const newComplaint = await Complaint.create({
+    const complaint = await Complaint.create({
         raisedBy: req.user._id,
         societyName: society.societyName,
         area,
@@ -33,12 +34,36 @@ const submitComplaint = asyncHandler(async (req, res) => {
         imageUrl: document?.url || '',
     });
 
-    if (!newComplaint) {
+    const isComplaintExist = await Complaint.findById(complaint._id)
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
+
+    if (!isComplaintExist) {
         throw new ApiError(500, "Something went wrong");
     }
 
+    const users = await ProfileVerification.find({ societyName: isComplaintExist.societyName })
+        .populate("user", "FCMToken role");
+
+    // const FCMTokens = users
+    // .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+
+    const FCMTokens = users
+        .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+        .map((item) => item.user.FCMToken);
+
+
+    let payload = {
+        ...isComplaintExist.toObject(),
+        action: 'NOTIFY_COMPLAINT_CREATED'
+    };
+
+    FCMTokens.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
+
     return res.status(200).json(
-        new ApiResponse(200, newComplaint, "Complaint submitted successfully")
+        new ApiResponse(200, isComplaintExist, "Complaint submitted successfully")
     );
 });
 
@@ -82,10 +107,36 @@ const addResponse = asyncHandler(async (req, res) => {
         },
         { new: true }
     ).populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
+    }
+
+    if (complaint.raisedBy._id.toString() === req.user._id.toString()) {
+        const users = await ProfileVerification.find({ societyName: complaint.societyName })
+            .populate("user", "FCMToken role");
+
+        const FCMTokens = users
+            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+            .map((item) => item.user.FCMToken);
+
+
+        let payload = {
+            ...complaint.toObject(),
+            action: 'NOTIFY_RESIDENT_REPLIED'
+        };
+
+        FCMTokens.forEach(token => {
+            sendNotification(token, payload.action, JSON.stringify(payload));
+        });
+    } else {
+        let payload = {
+            ...complaint.toObject(),
+            action: 'NOTIFY_ADMIN_REPLIED'
+        };
+
+        sendNotification(complaint.raisedBy.FCMToken, payload.action, JSON.stringify(payload));
     }
 
     return res.status(200).json(
@@ -101,10 +152,44 @@ const resolveComplaint = asyncHandler(async (req, res) => {
         },
         { new: true }  // Return the updated document
     ).populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
+    }
+
+    if (complaint.raisedBy._id.toString() === req.user._id.toString()) {
+        const users = await ProfileVerification.find({ societyName: complaint.societyName })
+            .populate("user", "FCMToken role");
+
+        const FCMTokens = users
+            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+            .map((item) => item.user.FCMToken);
+
+        let payload = {
+            complaintId: complaint.complaintId,
+            category: complaint.category,
+            societyName: complaint.societyName,
+            resolvedBy: req.user.userName,
+            isResolvedByResident: true,
+            action: "NOTIFY_COMPLAINT_RESOLVED"
+        };
+
+        FCMTokens.forEach(token => {
+            sendNotification(token, payload.action, JSON.stringify(payload));
+        });
+    } else {
+
+        let payload = {
+            complaintId: complaint.complaintId,
+            category: complaint.category,
+            societyName: complaint.societyName,
+            resolvedBy: req.user.userName,
+            isResolvedByResident: false,
+            action: "NOTIFY_COMPLAINT_RESOLVED"
+        };
+
+        sendNotification(complaint.raisedBy.FCMToken, payload.action, JSON.stringify(payload));
     }
 
     return res.status(200).json(
@@ -120,10 +205,44 @@ const reopenComplaint = asyncHandler(async (req, res) => {
         },
         { new: true }  // Return the updated document
     ).populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
+    }
+
+    if (complaint.raisedBy._id.toString() === req.user._id.toString()) {
+        const users = await ProfileVerification.find({ societyName: complaint.societyName })
+            .populate("user", "FCMToken role");
+
+        const FCMTokens = users
+            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+            .map((item) => item.user.FCMToken);
+
+        let payload = {
+            complaintId: complaint.complaintId,
+            category: complaint.category,
+            societyName: complaint.societyName,
+            reopenedBy: req.user.userName,
+            isReopenedByResident: true,
+            action: "NOTIFY_COMPLAINT_REOPENED"
+        };
+
+        FCMTokens.forEach(token => {
+            sendNotification(token, payload.action, JSON.stringify(payload));
+        });
+    } else {
+
+        let payload = {
+            complaintId: complaint.complaintId,
+            category: complaint.category,
+            societyName: complaint.societyName,
+            reopenedBy: req.user.userName,
+            isReopenedByResident: false,
+            action: "NOTIFY_COMPLAINT_REOPENED"
+        };
+
+        sendNotification(complaint.raisedBy.FCMToken, payload.action, JSON.stringify(payload));
     }
 
     return res.status(200).json(
@@ -134,8 +253,8 @@ const reopenComplaint = asyncHandler(async (req, res) => {
 const getResponse = asyncHandler(async (req, res) => {
 
     const complaint = await Complaint.findOne({ complaintId: req.params.id })
-    .populate("responses.responseBy", "userName email profile role phoneNo")
-    .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");

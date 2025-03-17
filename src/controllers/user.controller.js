@@ -443,7 +443,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     ]);
 
     let document;
-    if(file){
+    if (file) {
         document = await uploadOnCloudinary(file.path);
     }
 
@@ -466,7 +466,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
                 ownershipDocument: document?.url,
                 residentStatus: user.role === 'admin' ? 'approve' : 'pending',
             }
-        }else{
+        } else {
             data = {
                 user: user._id,
                 profileType,
@@ -586,6 +586,25 @@ const cancelNotification = asyncHandler(async (req, res) => {
     sendNotificationCancel(token, notificationId);
 });
 
+const getContactEmail = asyncHandler(async (req, res) => {
+    const member = await ProfileVerification.findOne({user: req.user._id});
+
+    if (!member) {
+        throw new ApiError(500, "Something went wrong!!");
+    }
+
+    const contactEmail = await User.findOne({societyName: member.societyName}).select("-isUserTypeVerified -role -isGoogleVerified -isVerified");
+    
+    if(!contactEmail){
+        throw new ApiError(400, "Email do not exist");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, contactEmail, "Contact email fetched successfully.")
+    )
+
+});
+
 export {
     registerUser,
     loginUser,
@@ -599,5 +618,6 @@ export {
     updateAccountDetails,
     addExtraInfo,
     updateFCMToken,
-    cancelNotification
+    cancelNotification,
+    getContactEmail
 };
