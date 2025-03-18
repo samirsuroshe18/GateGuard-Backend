@@ -36,7 +36,7 @@ const submitComplaint = asyncHandler(async (req, res) => {
 
     const isComplaintExist = await Complaint.findById(complaint._id)
         .populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
 
     if (!isComplaintExist) {
         throw new ApiError(500, "Something went wrong");
@@ -45,11 +45,8 @@ const submitComplaint = asyncHandler(async (req, res) => {
     const users = await ProfileVerification.find({ societyName: isComplaintExist.societyName })
         .populate("user", "FCMToken role");
 
-    // const FCMTokens = users
-    // .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
-
     const FCMTokens = users
-        .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+        .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && isComplaintExist.raisedBy.FCMToken !== item.user?.FCMToken)
         .map((item) => item.user.FCMToken);
 
 
@@ -118,7 +115,7 @@ const addResponse = asyncHandler(async (req, res) => {
             .populate("user", "FCMToken role");
 
         const FCMTokens = users
-            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== complaint.raisedBy.FCMToken)
             .map((item) => item.user.FCMToken);
 
 
@@ -163,7 +160,7 @@ const resolveComplaint = asyncHandler(async (req, res) => {
             .populate("user", "FCMToken role");
 
         const FCMTokens = users
-            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== complaint.raisedBy.FCMToken)
             .map((item) => item.user.FCMToken);
 
         let payload = {
@@ -216,7 +213,7 @@ const reopenComplaint = asyncHandler(async (req, res) => {
             .populate("user", "FCMToken role");
 
         const FCMTokens = users
-            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== req.user.FCMToken)
+            .filter((item) => item.user?.role === "admin" && item.user?.FCMToken && item.user.FCMToken !== complaint.raisedBy.FCMToken)
             .map((item) => item.user.FCMToken);
 
         let payload = {
