@@ -16,7 +16,17 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, './views'));
 
 // this use for cross origin sharing 
-app.use(cors({ origin: process.env.CORS_ORIGIN }));
+// app.use(cors({ origin: process.env.CORS_ORIGIN }));
+
+app.use(
+  cors({
+      origin: process.env.CORS_ORIGIN, // Allow frontend origin
+      methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
+      allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
+      credentials: true, // Allow cookies/auth headers if needed
+  })
+);
+
 // this middleware use for parsing the json data
 app.use(express.json());
 // this is used for parsing url data extended is used for nessted object
