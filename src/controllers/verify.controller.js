@@ -15,7 +15,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
     user.isVerified = true;
     user.verifyToken = undefined;
     user.verifyTokenExpiry = undefined;
-    user.expireAfterSeconds = undefined;
+    user.expireDocAfterSeconds = undefined;
     await user.save()
 
     return res.render("success");

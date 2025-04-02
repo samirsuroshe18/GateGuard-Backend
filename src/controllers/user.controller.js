@@ -45,6 +45,7 @@ const registerUser = asyncHandler(async (req, res) => {
         email,
         password,
         userName,
+        expireDocAfterSeconds : new Date()
     });
 
     const createdUser = await User.findById(user._id);
