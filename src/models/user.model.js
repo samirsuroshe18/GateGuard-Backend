@@ -64,6 +64,12 @@ const userSchema = new Schema({
         type: String
     },
 
+    expireAfterSeconds: { 
+        type: Date, 
+        default: Date.now, 
+        expires: 600 // TTL Index (10 minutes)
+    },
+
     verifyToken: String,
     verifyTokenExpiry: Date,
     googleVerifyToken: String,
