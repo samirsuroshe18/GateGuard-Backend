@@ -18,13 +18,14 @@ const uploadOnCloudinary = async (localFilePath) => {
 
         if (fs.existsSync(localFilePath)) {
             response = await cloud.uploader.upload(localFilePath, { resource_type: "auto", folder: "gloria-smartgate-files", });
-            console.log("file is uploaded on cloudinary sdk : ", response.url);
+            console.log("file is uploaded on cloudinary sdk : ", response.secure_url);
             fs.unlinkSync(localFilePath)//remove the locally saved temporary files as the upload operation got successfull
         }else{
             throw new ApiError(400, "File path is not found !!");
         }
 
         return response;
+        // return response.secure_url; // ✅ returning HTTPS URL
     }
     catch (err) {
         if (fs.existsSync(localFilePath)) {

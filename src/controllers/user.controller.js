@@ -390,58 +390,20 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const addExtraInfo = asyncHandler(async (req, res) => {
     const { phoneNo, profileType, societyName, societyBlock, apartment, ownership, gateAssign, startDate, endDate } = req.body;
-    const admin = await User.find({ role: 'admin' });
-    const adminSociety = await ProfileVerification.findOne({ user: admin?._id });
     const user = req.user;
     const file = req.file;
+    const admin = await User.find({ role: 'admin' });
+    const adminUserIds = admin.map(adminUser => adminUser._id);
 
-    const profile = await ProfileVerification.aggregate([
-        {
-            $match: {
-                residentStatus: 'approve',
-                societyName: societyName,
-                $or: admin.map(adminUser => ({
-                    user: adminUser._id
-                })),
-            },
-        },
-        {
-            $lookup: {
-                from: "users",
-                let: { userId: "$user" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$_id", "$$userId"] }
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            userName: 1,
-                            profile: 1,
-                            email: 1,
-                            role: 1,
-                            phoneNo: 1,
-                            FCMToken: 1
-                        }
-                    }
-                ],
-                as: "user"
-            }
-        },
-        {
-            $unwind: {
-                path: "$user",
-                preserveNullAndEmptyArrays: true
-            }
-        },
-        {
-            $project: {
-                user: 1
-            }
-        }
-    ]);
+    const results = await ProfileVerification.find({
+        residentStatus: 'approve',
+        societyName: societyName,
+        user: { $in: adminUserIds }
+    }).populate('user', 'FCMToken');
+    
+    const fcmToken = results
+        .map(item => item.user?.FCMToken) // Use optional chaining in case user is null
+        .filter(token => !!token); // Remove undefined/null tokens
 
     let document;
     if (file) {
@@ -547,9 +509,8 @@ const addExtraInfo = asyncHandler(async (req, res) => {
     }
 
     // Send notification to admin if the user is not an admin
-    if (user.role !== 'admin' && profile.length > 0) {
-        const FCMTokens = profile.map((item) => item.user?.FCMToken).filter((token) => token != null);
-        FCMTokens.forEach(token => {
+    if (user.role !== 'admin' && fcmToken.length > 0) {
+        fcmToken.forEach(token => {
             sendNotification(token, payload.action, JSON.stringify(payload));
         });
     }
@@ -577,6 +538,7 @@ const updateFCMToken = asyncHandler(async (req, res) => {
     if (!isUpdate) {
         throw new ApiError(500, "Something went wrong");
     }
+    console.log(`${req.user.userName}'s FCM Token updated successfully ${user.FCMToken}`);
     return res.status(200).json(
         new ApiResponse(200, {}, "FCM Token updated successfully")
     );

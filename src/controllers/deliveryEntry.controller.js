@@ -19,57 +19,21 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
 
     const profileImg = await uploadOnCloudinary(req.file.path);
 
-    if (!profileImg.url) {
+    if (!profileImg.secure_url) {
         throw new ApiError(400, "Error while uploading on avatar");
     }
 
-    const profile = await ProfileVerification.aggregate([
-        {
-            $match: {
-                residentStatus: 'approve',
-                societyName: JSON.parse(societyDetails).societyName,
-                $or: JSON.parse(societyDetails).societyApartments
-            }
-        },
-        {
-            $lookup: {
-                from: "users",
-                let: { userId: "$user" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$_id", "$$userId"] }
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            userName: 1,
-                            profile: 1,
-                            email: 1,
-                            role: 1,
-                            phoneNo: 1,
-                            FCMToken: 1
-                        }
-                    }
-                ],
-                as: "user"
-            }
-        },
-        {
-            $unwind: {
-                path: "$user",
-                preserveNullAndEmptyArrays: true
-            }
-        },
-        {
-            $project: {
-                user: 1
-            }
-        }
-    ]);
+    const results = await ProfileVerification.find({
+        residentStatus: 'approve',
+        societyName: JSON.parse(societyDetails).societyName,
+        $or: JSON.parse(societyDetails).societyApartments
+    }).populate('user', 'FCMToken');
 
-    if (profile.length <= 0) {
+    const fcmToken = results
+        .map(item => item.user?.FCMToken) // Use optional chaining in case user is null
+        .filter(token => !!token); // Remove undefined/null tokens
+
+    if (fcmToken.length <= 0) {
         throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
@@ -107,7 +71,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
     const deliveryEntry = await DeliveryEntry.create({
         name,
         mobNumber,
-        profileImg: profileImg?.url || '',
+        profileImg: profileImg?.secure_url || '',
         companyName,
         companyLogo,
         serviceName,
@@ -128,26 +92,24 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
-    const FCMTokens = profile.map((item) => item.user.FCMToken);
-
     var payload = {
         id: createddeliveryEntry._id,
         name,
         mobNumber,
-        profileImg,
+        profileImg: createddeliveryEntry.profileImg,
         companyName,
         companyLogo,
         serviceName,
         serviceLogo,
         accompanyingGuest,
         entryType,
-        vehicleDetails,
-        societyDetails,
+        vehicleDetails: createddeliveryEntry.vehicleDetails,
+        societyDetails: createddeliveryEntry.societyDetails,
         notificationId: createddeliveryEntry.notificationId,
         action: 'VERIFY_DELIVERY_ENTRY'
     };
 
-    FCMTokens.forEach((token) => {
+    fcmToken.forEach(token => {
         sendNotification(token, payload.action, JSON.stringify(payload));
     });
 

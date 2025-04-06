@@ -31,7 +31,7 @@ const submitComplaint = asyncHandler(async (req, res) => {
         subCategory,
         description,
         complaintId,
-        imageUrl: document?.url || '',
+        imageUrl: document?.secure_url || '',
     });
 
     const isComplaintExist = await Complaint.findById(complaint._id)
