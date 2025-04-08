@@ -5,6 +5,7 @@ import { Complaint } from '../models/complaint.model.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
 import { sendNotification } from '../utils/sendResidentNotification.js'
+import mongoose from 'mongoose';
 
 const submitComplaint = asyncHandler(async (req, res) => {
     const { area, category, subCategory, description } = req.body;
@@ -77,17 +78,18 @@ const getComplaints = asyncHandler(async (req, res) => {
 });
 
 const getComplaintDetails = asyncHandler(async (req, res) => {
-    try {
-        const complaint = await Complaint.findOne({ complaintId: req.params.id });
+    const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
+    const complaint = await Complaint.findById(id)
+    .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
 
-        if (!complaint) {
-            return res.status(404).json({ success: false, message: "Complaint not found" });
-        }
-
-        res.status(200).json({ success: true, complaint });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Error fetching complaint details", error: error.message });
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
     }
+
+    return res.status(200).json(
+        new ApiResponse(200, complaint, "Complaint details fetched successfully")
+    );
 });
 
 const addResponse = asyncHandler(async (req, res) => {
@@ -104,7 +106,8 @@ const addResponse = asyncHandler(async (req, res) => {
         },
         { new: true }
     ).populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
+        .populate("raisedBy", "userName email profile role phoneNo FCMToken")
+        .exec();
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
@@ -120,7 +123,11 @@ const addResponse = asyncHandler(async (req, res) => {
 
 
         let payload = {
-            ...complaint.toObject(),
+            societyName: complaint.societyName,
+            raisedBy: complaint.raisedBy,
+            category: complaint.category,
+            subCategory: complaint.subCategory,
+            id: complaint._id,
             action: 'NOTIFY_RESIDENT_REPLIED'
         };
 
@@ -129,7 +136,11 @@ const addResponse = asyncHandler(async (req, res) => {
         });
     } else {
         let payload = {
-            ...complaint.toObject(),
+            societyName: complaint.societyName,
+            raisedBy: complaint.raisedBy,
+            category: complaint.category,
+            subCategory: complaint.subCategory,
+            id: complaint._id,
             action: 'NOTIFY_ADMIN_REPLIED'
         };
 
@@ -248,8 +259,8 @@ const reopenComplaint = asyncHandler(async (req, res) => {
 });
 
 const getResponse = asyncHandler(async (req, res) => {
-
-    const complaint = await Complaint.findOne({ complaintId: req.params.id })
+    const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
+    const complaint = await Complaint.findById(id)
         .populate("responses.responseBy", "userName email profile role phoneNo")
         .populate("raisedBy", "userName email profile role phoneNo");
 
