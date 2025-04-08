@@ -52,7 +52,10 @@ const submitComplaint = asyncHandler(async (req, res) => {
 
 
     let payload = {
-        ...isComplaintExist.toObject(),
+        societyName: isComplaintExist.societyName,
+        raisedBy: isComplaintExist.raisedBy,
+        category: isComplaintExist.category,
+        id: isComplaintExist._id,
         action: 'NOTIFY_COMPLAINT_CREATED'
     };
 

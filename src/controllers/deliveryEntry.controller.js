@@ -1183,6 +1183,39 @@ const allowDeliveryBySecurity = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
+let userIds = [];
+
+// Step 1: Extract userIds from members inside societyApartments
+result.societyDetails.societyApartments.forEach(apartment => {
+  apartment.members.forEach(member => {
+    if (member._id) {
+      userIds.push(member._id);
+    }
+  });
+});
+
+// Step 2 (Optional): Ensure unique IDs
+userIds = [...new Set(userIds.map(id => id.toString()))];
+
+// Step 3: Fetch users with only FCM tokens
+const fcmToken = await User.find(
+    { _id: { $in: userIds } },
+    { FCMToken: 1, _id: 0 } // Only get fcmToken field
+);
+
+const fcmTokens = fcmToken
+  .map(user => user.FCMToken)
+  .filter(token => typeof token === 'string' && token.length > 0);
+
+    let payload = {
+        name: result.name,
+        action: 'NOTIFY_CHECKED_IN'
+    };
+    
+    fcmTokens.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
+
     return res.status(200).json(
         new ApiResponse(200, {}, "Delivery Allowed successfully.")
     );
