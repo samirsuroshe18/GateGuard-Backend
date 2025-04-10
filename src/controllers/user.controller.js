@@ -541,7 +541,6 @@ const updateFCMToken = asyncHandler(async (req, res) => {
     if (!isUpdate) {
         throw new ApiError(500, "Something went wrong");
     }
-    console.log(`${req.user.userName}'s FCM Token updated successfully ${user.FCMToken}`);
     return res.status(200).json(
         new ApiResponse(200, {}, "FCM Token updated successfully")
     );

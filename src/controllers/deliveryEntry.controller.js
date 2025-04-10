@@ -3645,7 +3645,6 @@ function getEntryStatus(data, societyBlock, apartment) {
 }
 
 const getPastDeliveryEntries = asyncHandler(async (req, res) => {
-    console.log(req.query);
     const user = await ProfileVerification.findOne({ user: req.user._id });
     if (!user) {
         throw new ApiError(500, "No resident found");
