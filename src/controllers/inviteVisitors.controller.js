@@ -379,6 +379,11 @@ const getExpectedEntry = asyncHandler(async (req, res) => {
                 isPreApproved: 1,
             },
         },
+        {
+            $sort: {
+                checkInCodeStartDate: -1
+            }
+        }
     ]);
 
     if (!checkInCode || checkInCode.length <= 0) {
@@ -776,6 +781,9 @@ const getGatePass = asyncHandler(async (req, res) => {
                 checkInCodeExpiryDate: 1,
             },
         },
+        {
+            $sort: { checkInCodeStartDate: -1 }
+        }
     ]);
 
     return res.status(200).json(

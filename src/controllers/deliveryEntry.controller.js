@@ -406,7 +406,8 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 entryTime: { $first: "$entryTime" },
                 exitTime: { $first: "$exitTime" },
                 notificationId: { $first: "$notificationId" },
-                hasExited: { $first: "$hasExited" }
+                hasExited: { $first: "$hasExited" },
+                createdAt: { $first: "$createdAt" }
             }
         },
         {
@@ -431,6 +432,11 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                     societyGates: "$_id.societyGates",
                     societyApartments: "$societyApartments"
                 },
+            }
+        },
+        {
+            $sort: {
+                "createdAt": -1 // Sort by createdAt field in descending order
             }
         }
     ]);
@@ -897,13 +903,20 @@ const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry];
 
-    if (response.length <= 0) {
+    const sortedResponse = response.sort((a, b) => {
+        const timeA = new Date(a.entryTime || 0).getTime();
+        const timeB = new Date(b.entryTime || 0).getTime();
+        return timeB - timeA;
+    });
+
+    if (sortedResponse.length === 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Allowed delivery fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Allowed delivery fetched successfully.")
     );
+
 });
 
 const approveDelivery = asyncHandler(async (req, res) => {
@@ -1183,35 +1196,35 @@ const allowDeliveryBySecurity = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
-let userIds = [];
+    let userIds = [];
 
-// Step 1: Extract userIds from members inside societyApartments
-result.societyDetails.societyApartments.forEach(apartment => {
-  apartment.members.forEach(member => {
-    if (member._id) {
-      userIds.push(member._id);
-    }
-  });
-});
+    // Step 1: Extract userIds from members inside societyApartments
+    result.societyDetails.societyApartments.forEach(apartment => {
+        apartment.members.forEach(member => {
+            if (member._id) {
+                userIds.push(member._id);
+            }
+        });
+    });
 
-// Step 2 (Optional): Ensure unique IDs
-userIds = [...new Set(userIds.map(id => id.toString()))];
+    // Step 2 (Optional): Ensure unique IDs
+    userIds = [...new Set(userIds.map(id => id.toString()))];
 
-// Step 3: Fetch users with only FCM tokens
-const fcmToken = await User.find(
-    { _id: { $in: userIds } },
-    { FCMToken: 1, _id: 0 } // Only get fcmToken field
-);
+    // Step 3: Fetch users with only FCM tokens
+    const fcmToken = await User.find(
+        { _id: { $in: userIds } },
+        { FCMToken: 1, _id: 0 } // Only get fcmToken field
+    );
 
-const fcmTokens = fcmToken
-  .map(user => user.FCMToken)
-  .filter(token => typeof token === 'string' && token.length > 0);
+    const fcmTokens = fcmToken
+        .map(user => user.FCMToken)
+        .filter(token => typeof token === 'string' && token.length > 0);
 
     let payload = {
         name: result.name,
         action: 'NOTIFY_CHECKED_IN'
     };
-    
+
     fcmTokens.forEach(token => {
         sendNotification(token, payload.action, JSON.stringify(payload));
     });
@@ -1540,12 +1553,19 @@ const getGuestEntries = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry];
 
-    if (response.length <= 0) {
+    // Sort in descending order by entryTime
+    const sortedResponse = response.sort((a, b) => {
+        const timeA = new Date(a.entryTime || 0).getTime();
+        const timeB = new Date(b.entryTime || 0).getTime();
+        return timeB - timeA;
+    });
+
+    if (sortedResponse.length === 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Allowed delivery fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Allowed guest entries fetched successfully.")
     );
 });
 
@@ -1800,12 +1820,19 @@ const getDeliveryEntries = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry];
 
-    if (response.length <= 0) {
+    // Sort entries by entryTime in descending order
+    const sortedResponse = response.sort((a, b) => {
+        const timeA = new Date(a.entryTime || 0).getTime();
+        const timeB = new Date(b.entryTime || 0).getTime();
+        return timeB - timeA;
+    });
+
+    if (sortedResponse.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Allowed delivery fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Allowed delivery fetched successfully.")
     );
 });
 
@@ -2060,12 +2087,18 @@ const getCabEntries = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry];
 
-    if (response.length <= 0) {
+    const sortedResponse = response.sort((a, b) => {
+        const timeA = new Date(a.entryTime || 0).getTime();
+        const timeB = new Date(b.entryTime || 0).getTime();
+        return timeB - timeA;
+    });
+
+    if (sortedResponse.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Allowed delivery fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Allowed cab entries fetched successfully.")
     );
 });
 
@@ -2320,12 +2353,18 @@ const getOtherEntries = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry];
 
-    if (response.length <= 0) {
+    const sortedResponse = response.sort((a, b) => {
+        const timeA = new Date(a.entryTime || 0).getTime();
+        const timeB = new Date(b.entryTime || 0).getTime();
+        return timeB - timeA;
+    });
+
+    if (sortedResponse.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Allowed delivery fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Allowed other entries fetched successfully.")
     );
 });
 
@@ -2574,12 +2613,19 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry];
 
-    if (response.length <= 0) {
+    // Sort by exitTime in descending order (fallback to entryTime if exitTime is missing)
+    const sortedResponse = response.sort((a, b) => {
+        const timeA = new Date(a.exitTime || a.entryTime || 0).getTime();
+        const timeB = new Date(b.exitTime || b.entryTime || 0).getTime();
+        return timeB - timeA;
+    });
+
+    if (sortedResponse.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Past entries fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Past entries fetched successfully.")
     );
 });
 
@@ -2873,7 +2919,7 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
     ]);
 
     const preApprovedServiceEntry = await PreApproved.aggregate([
-        
+
         {
             $match: {
                 'allowedBy.status': 'approve',
@@ -2977,12 +3023,15 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
 
     const response = [...deliveryEntry, ...preApprovedEntry, ...preApprovedServiceEntry];
 
-    if (response.length <= 0) {
+    // Sort by entryTime in descending order
+    const sortedResponse = response.sort((a, b) => new Date(b.entryTime ?? 0) - new Date(a.entryTime ?? 0));
+
+    if (sortedResponse.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, response, "Current entries fetched successfully.")
+        new ApiResponse(200, sortedResponse, "Current entries fetched successfully.")
     );
 });
 
@@ -3536,6 +3585,11 @@ const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
             }
         },
         {
+            $sort: {
+                entryTime: -1
+            }
+        },
+        {
             $project: {
                 _id: 1,
                 guardStatus: 1,
@@ -3604,24 +3658,24 @@ const getPastDeliveryEntries = asyncHandler(async (req, res) => {
 
     // Filter parameters
     const filters = {};
-    
+
     // Date range filter
     if (req.query.startDate && req.query.endDate) {
         const startDate = new Date(req.query.startDate);
         const endDate = new Date(req.query.endDate);
         endDate.setHours(23, 59, 59, 999); // Set to end of day
-        
+
         filters.entryTime = {
             $gte: startDate,
             $lte: endDate
         };
     }
-    
+
     // Entry type filter
     if (req.query.entryType) {
         filters.entryType = req.query.entryType;
     }
-    
+
     // Name/keyword search
     if (req.query.search) {
         filters.$or = [
@@ -3674,7 +3728,7 @@ const getPastDeliveryEntries = asyncHandler(async (req, res) => {
         PreApproved.countDocuments(preApprovedMatch),
         PreApproved.countDocuments(preApprovedServiceMatch)
     ]);
-    
+
     const totalCount = deliveryCount + preApprovedCount + serviceCount;
     const totalPages = Math.ceil(totalCount / limit);
 

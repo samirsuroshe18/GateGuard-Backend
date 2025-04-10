@@ -532,6 +532,9 @@ const addExtraInfo = asyncHandler(async (req, res) => {
 
 const updateFCMToken = asyncHandler(async (req, res) => {
     const { FCMToken } = req.body;
+    if (!FCMToken) {
+        throw new ApiError(400, "FCM Token is required");
+    }
     const user = req.user;
     user.FCMToken = FCMToken;
     const isUpdate = await user.save({ validateBeforeSave: false });

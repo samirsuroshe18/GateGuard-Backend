@@ -55,6 +55,7 @@ const getNotices = asyncHandler(async (req, res, next) => {
     const society = req.member?.societyName || '';
 
     const notices = await NoticeBoard.find({ isDeleted: false, society })
+        .sort({ createdAt: -1 }) // Sort by newest first
         .populate("publishedBy", "userName email")
         .populate("readBy", "userName email");
 

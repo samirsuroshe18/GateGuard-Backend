@@ -69,16 +69,16 @@ const submitComplaint = asyncHandler(async (req, res) => {
 });
 
 const getComplaints = asyncHandler(async (req, res) => {
-
     const updatedComplaint = await Complaint.find({ raisedBy: req.user._id })
+        .sort({ createdAt: -1 }) // Sort by newest complaint first
         .populate("responses.responseBy", "userName email profile role phoneNo")
         .populate("raisedBy", "userName email profile role phoneNo");
-
 
     return res.status(200).json(
         new ApiResponse(200, updatedComplaint, "Complaint submitted successfully")
     );
 });
+
 
 const getComplaintDetails = asyncHandler(async (req, res) => {
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
