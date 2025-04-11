@@ -23,10 +23,12 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Error while uploading on avatar");
     }
 
+    const parsedSocietyDetails = JSON.parse(societyDetails);
+    
     const results = await ProfileVerification.find({
         residentStatus: 'approve',
-        societyName: JSON.parse(societyDetails).societyName,
-        $or: JSON.parse(societyDetails).societyApartments
+        societyName: parsedSocietyDetails.societyName,
+        $or: parsedSocietyDetails.societyApartments
     }).populate('user', 'FCMToken');
 
     const fcmToken = results
@@ -37,12 +39,12 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
-    // Iterate through societyApartments and add members
+    // Iterate through societyApartments and add members for all entry types
     const updatedApartments = await Promise.all(
-        JSON.parse(societyDetails)?.societyApartments.map(async (apartment) => {
+        parsedSocietyDetails.societyApartments.map(async (apartment) => {
             // Query ProfileVerification model to find members matching the criteria
             const members = await ProfileVerification.find({
-                societyName: JSON.parse(societyDetails).societyName,
+                societyName: parsedSocietyDetails.societyName,
                 societyBlock: apartment.societyBlock,
                 apartment: apartment.apartment,
             }).populate('user');
@@ -57,7 +59,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
                 };
             });
 
-            // Return updated apartment object
+            // Return updated apartment object with members included regardless of entryType
             return {
                 ...apartment,
                 members: filteredData,
@@ -66,7 +68,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
     );
 
     // Update societyDetails with the modified societyApartments array
-    JSON.parse(societyDetails).societyApartments = updatedApartments;
+    parsedSocietyDetails.societyApartments = updatedApartments;
 
     const deliveryEntry = await DeliveryEntry.create({
         name,
@@ -79,7 +81,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
         accompanyingGuest,
         entryType,
         vehicleDetails: JSON.parse(vehicleDetails),
-        societyDetails: JSON.parse(societyDetails),
+        societyDetails: parsedSocietyDetails,
         notificationId: generateNotificationId(),
         guardStatus: {
             guard: req.user._id,
@@ -121,12 +123,15 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
 const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
     const { name, mobNumber, profileImg, companyName, companyLogo, serviceName, serviceLogo, accompanyingGuest, vehicleDetails, entryType, societyDetails } = req.body;
 
+    // Clone the societyDetails object to avoid direct mutation
+    const parsedSocietyDetails = { ...societyDetails };
+
     const profile = await ProfileVerification.aggregate([
         {
             $match: {
                 residentStatus: 'approve',
-                societyName: societyDetails.societyName,
-                $or: societyDetails.societyApartments
+                societyName: parsedSocietyDetails.societyName,
+                $or: parsedSocietyDetails.societyApartments
             }
         },
         {
@@ -171,12 +176,12 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         throw new ApiError(500, "No resident found or apartment is vacant");
     }
 
-    // Iterate through societyApartments and add members
+    // Iterate through societyApartments and add members for all entry types
     const updatedApartments = await Promise.all(
-        societyDetails?.societyApartments.map(async (apartment) => {
+        parsedSocietyDetails.societyApartments.map(async (apartment) => {
             // Query ProfileVerification model to find members matching the criteria
             const members = await ProfileVerification.find({
-                societyName: societyDetails.societyName,
+                societyName: parsedSocietyDetails.societyName,
                 societyBlock: apartment.societyBlock,
                 apartment: apartment.apartment,
             }).populate('user');
@@ -190,7 +195,8 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
                     profile: item.user.profile
                 };
             });
-            // Return updated apartment object
+            
+            // Return updated apartment object with members for all entry types
             return {
                 ...apartment,
                 members: filteredData,
@@ -199,7 +205,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
     );
 
     // Update societyDetails with the modified societyApartments array
-    societyDetails.societyApartments = updatedApartments;
+    parsedSocietyDetails.societyApartments = updatedApartments;
 
     const deliveryEntry = await DeliveryEntry.create({
         name,
@@ -212,7 +218,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         accompanyingGuest,
         entryType,
         vehicleDetails,
-        societyDetails,
+        societyDetails: parsedSocietyDetails,
         notificationId: generateNotificationId(),
         guardStatus: {
             guard: req.user._id,
@@ -225,7 +231,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
-    const FCMTokens = profile.map((item) => item.user.FCMToken);
+    const FCMTokens = profile.map((item) => item.user.FCMToken).filter(token => !!token);
 
     var payload = {
         id: createddeliveryEntry._id,
@@ -239,7 +245,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
         accompanyingGuest,
         entryType,
         vehicleDetails,
-        societyDetails,
+        societyDetails: createddeliveryEntry.societyDetails,
         notificationId: createddeliveryEntry.notificationId,
         action: 'VERIFY_DELIVERY_ENTRY'
     };
@@ -254,6 +260,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
 });
 
 const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
+    console.log('hello')
     const society = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
 
     if (!society) {
@@ -305,7 +312,37 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 preserveNullAndEmptyArrays: true
             }
         },
-        // Ensure that members field is projected correctly
+        // Lookup for members for all entry types
+        {
+            $lookup: {
+                from: "users",
+                let: { memberIds: "$societyDetails.societyApartments.members" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { 
+                                $cond: {
+                                    if: { $isArray: "$$memberIds" },
+                                    then: { $in: ["$_id", "$$memberIds"] },
+                                    else: false
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            email: 1,
+                            userName: 1,
+                            phoneNo: 1,
+                            profile: 1
+                        }
+                    }
+                ],
+                as: "memberDetails"
+            }
+        },
+        // Project stage to ensure consistent structure
         {
             $project: {
                 _id: 1,
@@ -319,6 +356,10 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 vehicleDetails: 1,
                 entryType: 1,
                 guardStatus: 1,
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1,
                 societyDetails: {
                     societyName: "$societyDetails.societyName",
                     societyGates: "$societyDetails.societyGates",
@@ -326,9 +367,23 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                         societyBlock: "$societyDetails.societyApartments.societyBlock",
                         apartment: "$societyDetails.societyApartments.apartment",
                         entryStatus: "$societyDetails.societyApartments.entryStatus",
-                        members: "$societyDetails.societyApartments.members", // Ensure members field is included
+                        // Ensure members is always an array (either from lookup or empty)
+                        members: {
+                            $cond: {
+                                if: { $eq: [{ $size: "$memberDetails" }, 0] },
+                                then: { 
+                                    $cond: {
+                                        if: { $isArray: "$societyDetails.societyApartments.members" },
+                                        then: "$societyDetails.societyApartments.members",
+                                        else: []
+                                    }
+                                },
+                                else: "$memberDetails"
+                            }
+                        }
                     }
                 },
+                createdAt: 1
             }
         },
         {
