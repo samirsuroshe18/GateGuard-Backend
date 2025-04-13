@@ -260,7 +260,6 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
 });
 
 const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
-    console.log('hello')
     const society = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
 
     if (!society) {
@@ -1076,9 +1075,11 @@ const approveDelivery = asyncHandler(async (req, res) => {
     });
 
     let payload = {
+        entryType: delivery.entryType,
         userName: user.userName,
-        deliveryName: delivery.name,
+        visitorName: delivery.name,
         companyName: delivery.companyName,
+        serviceName: delivery.serviceName,
         action: 'DELIVERY_ENTRY_APPROVE'
     };
 
@@ -1203,9 +1204,11 @@ const rejectDelivery = asyncHandler(async (req, res) => {
     });
 
     let payload = {
+        entryType: delivery.entryType,
         userName: user.userName,
-        deliveryName: delivery.name,
+        visitorName: delivery.name,
         companyName: delivery.companyName,
+        serviceName: delivery.serviceName,
         action: 'DELIVERY_ENTRY_REJECTED'
     };
 
