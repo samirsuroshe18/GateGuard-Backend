@@ -4,6 +4,7 @@ import asyncHandler from '../utils/asynchandler.js';
 import { GuardDutyLog } from '../models/guardDutyLog.model.js';
 import { User } from '../models/user.model.js';
 import { ProfileVerification } from '../models/profileVerification.model.js';
+import { sendNotification} from '../utils/sendResidentNotification.js';
 
 const guardDutyCheckin = asyncHandler(async (req, res) => {
     const { gate, checkinReason } = req.body;
@@ -46,6 +47,24 @@ const guardDutyCheckin = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
+    const users = await ProfileVerification.find({ societyName: updateGuardProfile.societyName })
+        .populate("user", "FCMToken role");
+
+    const FCMTokens = users
+        .filter((item) => item.user?.role === "admin" && item.user?.FCMToken)
+        .map((item) => item.user.FCMToken);
+
+
+    let payload = {
+        guardName: req.user.userName,
+        guardGate: req.guard.gateAssign,
+        action: 'GUARD_DUTY_CHECKIN',
+    };
+
+    FCMTokens.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
+
     return res.status(200).json(
         new ApiResponse(200, createdGuardLog, "Guard duty log created successfully",)
     );
@@ -80,6 +99,24 @@ const guardDutyCheckout = asyncHandler(async (req, res) => {
     if (!updateUser) {
         throw new ApiError(404, "User not found");
     }
+
+    const users = await ProfileVerification.find({ societyName: req.guard.societyName })
+        .populate("user", "FCMToken role");
+
+    const FCMTokens = users
+        .filter((item) => item.user?.role === "admin" && item.user?.FCMToken)
+        .map((item) => item.user.FCMToken);
+
+
+    let payload = {
+        guardName: req.user.userName,
+        guardGate: req.guard.gateAssign,
+        action: 'GUARD_DUTY_CHECKOUT',
+    };
+
+    FCMTokens.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
 
     return res.status(200).json(
         new ApiResponse(200, guardlog, "Guard duty log updated successfully")
