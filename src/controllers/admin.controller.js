@@ -15,13 +15,22 @@ const getAllResidents = asyncHandler(async (req, res) => {
         throw new ApiError(500, "You are not admin");
     }
 
-    const members = await ProfileVerification.aggregate([
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Base match conditions for ProfileVerification
+    const membersMatch = {
+        societyName: admin.societyName,
+        residentStatus: "approve",
+        profileType: "Resident"
+    };
+
+    // Pipeline to search for residents
+    const pipeline = [
         {
-            $match: {
-                societyName: admin.societyName,
-                residentStatus: "approve",
-                profileType: "Resident",
-            },
+            $match: membersMatch
         },
         {
             $lookup: {
@@ -37,37 +46,90 @@ const getAllResidents = asyncHandler(async (req, res) => {
                         $project: {
                             _id: 1,
                             userName: 1,
-                            profile: 1,
                             email: 1,
+                            profile: 1,
                             role: 1,
-                            phoneNo: 1,
+                            phoneNo: 1
                         }
                     }
                 ],
-                as: "user"
+                as: "userData"
             }
         },
         {
             $unwind: {
-                path: "$user",
+                path: "$userData",
                 preserveNullAndEmptyArrays: true
             }
-        },
-        {
-            $project: {
-                user: 1,
-                profileType: 1,
-                societyName: 1,
-                societyBlock: 1,
-                apartment: 1,
-                ownership: 1,
-                residentStatus: 1,
-            }
         }
-    ]);
+    ];
 
+    // Apply search filter if search query exists
+    if (req.query.search) {
+        // Add search match stage after the lookup and unwind
+        pipeline.push({
+            $match: {
+                $or: [
+                    { "userData.userName": { $regex: req.query.search, $options: 'i' } },
+                    { "userData.phoneNo": { $regex: req.query.search, $options: 'i' } }
+                ]
+            }
+        });
+    }
+
+    // Project the data to match the expected frontend structure
+    pipeline.push({
+        $project: {
+            _id: 1,
+            user: {
+                _id: "$userData._id",
+                userName: "$userData.userName",
+                email: "$userData.email",
+                phoneNo: "$userData.phoneNo",
+                profile: "$userData.profile",
+                role: "$userData.role"
+            },
+            profileType: 1,
+            societyName: 1,
+            societyBlock: 1,
+            apartment: 1,
+            ownership: 1,
+            residentStatus: 1
+        }
+    });
+
+    // Count total matching documents for pagination
+    const countPipeline = [...pipeline.slice(0, pipeline.findIndex(stage => stage.$project))];
+    countPipeline.push({ $count: "total" });
+    
+    const countResult = await ProfileVerification.aggregate(countPipeline);
+    const totalCount = countResult.length > 0 ? countResult[0].total : 0;
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Add pagination stages
+    pipeline.push(
+        { $skip: skip },
+        { $limit: limit }
+    );
+
+    // Execute the final aggregation pipeline
+    const members = await ProfileVerification.aggregate(pipeline);
+
+    if (members.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
     return res.status(200).json(
-        new ApiResponse(200, members, "Society members fetched successfully")
+        new ApiResponse(200, {
+            societyMembers: members,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Society members fetched successfully.")
     );
 });
 
@@ -291,21 +353,231 @@ const removeAdmin = asyncHandler(async (req, res) => {
     );
 });
 
-const getComplaints = asyncHandler(async (req, res) => { 
+const getComplaints = asyncHandler(async (req, res) => {
     const society = await ProfileVerification.findOne({ user: req.user._id });
+
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.entryTime = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Entry type filter
+    if (req.query.entryType) {
+        filters.entryType = req.query.entryType;
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { name: { $regex: req.query.search, $options: 'i' } },
+            { companyName: { $regex: req.query.search, $options: 'i' } },
+            { serviceName: { $regex: req.query.search, $options: 'i' } },
+            { mobNumber: { $regex: req.query.search, $options: 'i' } }
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const complaintMatch = {
+        societyName: society.societyName,
+        ...filters
+    };
+    
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(complaintMatch);
+    const totalPages = Math.ceil(totalCount / limit);
 
     if (!society) {
         throw new ApiError(404, "Profile is not found");
     }
 
-    const updatedComplaint = await Complaint.find({ societyName: society.societyName })
+    let updatedComplaint = await Complaint.find(complaintMatch)
+    .sort({ createdAt: -1 }) // Sort by newest complaint first
     .populate("responses.responseBy", "userName email profile role phoneNo") 
     .populate("raisedBy", "userName email profile role phoneNo"); 
 
+    // Apply pagination on combined results
+    updatedComplaint = updatedComplaint.slice(skip, skip + limit);
 
+    if (updatedComplaint.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
     return res.status(200).json(
-        new ApiResponse(200, {complaints:updatedComplaint, user:req.user}, "Complaint submitted successfully")
+        new ApiResponse(200, {
+            complaints: updatedComplaint,
+            user: req.user,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Complaints fetched successfully.")
     );
 });
 
-export { getAllResidents, getAllGuards, removeResident, removeGuard, getAllAdmin, makeAdmin, removeAdmin, getComplaints }
+const getPendingComplaints = asyncHandler(async (req, res) => {
+    const society = await ProfileVerification.findOne({ user: req.user._id });
+
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { complaintId: { $regex: req.query.search, $options: 'i' } },
+            { category: { $regex: req.query.search, $options: 'i' } },
+            { subCategory: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const complaintMatch = {
+        societyName: society.societyName,
+        status: "pending",
+        ...filters
+    };
+    
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(complaintMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    if (!society) {
+        throw new ApiError(404, "Profile is not found");
+    }
+
+    let updatedComplaint = await Complaint.find(complaintMatch)
+    .sort({ createdAt: -1 }) // Sort by newest complaint first
+    .populate("responses.responseBy", "userName email profile role phoneNo") 
+    .populate("raisedBy", "userName email profile role phoneNo"); 
+
+    // Apply pagination on combined results
+    updatedComplaint = updatedComplaint.slice(skip, skip + limit);
+
+    if (updatedComplaint.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
+    return res.status(200).json(
+        new ApiResponse(200, {
+            complaints: updatedComplaint,
+            user: req.user,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Complaints fetched successfully.")
+    );
+});
+
+const getResolvedComplaints = asyncHandler(async (req, res) => {
+    const society = await ProfileVerification.findOne({ user: req.user._id });
+
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { complaintId: { $regex: req.query.search, $options: 'i' } },
+            { category: { $regex: req.query.search, $options: 'i' } },
+            { subCategory: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const complaintMatch = {
+        societyName: society.societyName,
+        status: "resolved",
+        ...filters
+    };
+    
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(complaintMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    if (!society) {
+        throw new ApiError(404, "Profile is not found");
+    }
+
+    let updatedComplaint = await Complaint.find(complaintMatch)
+    .sort({ createdAt: -1 }) // Sort by newest complaint first
+    .populate("responses.responseBy", "userName email profile role phoneNo") 
+    .populate("raisedBy", "userName email profile role phoneNo"); 
+
+    // Apply pagination on combined results
+    updatedComplaint = updatedComplaint.slice(skip, skip + limit);
+
+    if (updatedComplaint.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
+    return res.status(200).json(
+        new ApiResponse(200, {
+            complaints: updatedComplaint,
+            user: req.user,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Complaints fetched successfully.")
+    );
+});
+
+export { getAllResidents, getAllGuards, removeResident, removeGuard, getAllAdmin, makeAdmin, removeAdmin, getComplaints, getPendingComplaints, getResolvedComplaints };

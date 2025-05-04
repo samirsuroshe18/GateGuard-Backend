@@ -37,7 +37,7 @@ router.route('/get-allowed-cab-entries').get(verifyJwt, verifyGuard, getCabEntri
 router.route('/get-allowed-other-entries').get(verifyJwt, verifyGuard, getOtherEntries);
 router.route('/get-allowed-delivery-entries').get(verifyJwt, verifyGuard, getDeliveryEntries);
 router.route('/exit-entry').post(verifyJwt, verifyGuard, exitEntry);
-router.route('/get-checkout-history').get(verifyJwt, verifyGuard, getCheckoutHistroy);
+router.route('/get-checkout-history').get(verifyJwt,  getCheckoutHistroy);
 
 //For residents
 

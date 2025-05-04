@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import { ProfileVerification } from "../models/profileVerification.model.js";
 import {sendNotification} from "../utils/sendResidentNotification.js"
 
-const createNotice = asyncHandler(async (req, res, next) => {
+const createNotice = asyncHandler(async (req, res) => {
     const { title, description, category } = req.body;
     const society = req.member?.societyName || '';
 
@@ -51,20 +51,79 @@ const createNotice = asyncHandler(async (req, res, next) => {
     );
 });
 
-const getNotices = asyncHandler(async (req, res, next) => {
+const getNotices = asyncHandler(async (req, res) => {
     const society = req.member?.societyName || '';
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    const notices = await NoticeBoard.find({ isDeleted: false, society })
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Entry type filter
+    if (req.query.category) {
+        filters.category = req.query.category;
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { title: { $regex: req.query.search, $options: 'i' } },
+            { description: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const noticeMatch = {
+        isDeleted: false, 
+        society,
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const totalCount = await NoticeBoard.countDocuments(noticeMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    let notices = await NoticeBoard.find(noticeMatch)
         .sort({ createdAt: -1 }) // Sort by newest first
         .populate("publishedBy", "userName email")
-        .populate("readBy", "userName email");
+        .populate("readBy", "userName email profile");
+
+    // Apply pagination on combined results
+    notices = notices.slice(skip, skip + limit);
+
+    if (notices.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
 
     return res.status(200).json(
-        new ApiResponse(200, notices, "Notices fetched successfully")
+        new ApiResponse(200, {
+            notices: notices,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Notices fetched successfully.")
     );
 });
 
-const getNotice = asyncHandler(async (req, res, next) => {
+const getNotice = asyncHandler(async (req, res) => {
     const society = req.member?.societyName || '';
 
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
@@ -87,7 +146,7 @@ const getNotice = asyncHandler(async (req, res, next) => {
     );
 });
 
-const updateNotice = asyncHandler(async (req, res, next) => {
+const updateNotice = asyncHandler(async (req, res) => {
     let { title, description, image } = req.body;
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
     const society = req.member?.societyName || '';
@@ -123,7 +182,7 @@ const updateNotice = asyncHandler(async (req, res, next) => {
     );
 });
 
-const deleteNotice = asyncHandler(async (req, res, next) => {
+const deleteNotice = asyncHandler(async (req, res) => {
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
     const society = req.member?.societyName || '';
 

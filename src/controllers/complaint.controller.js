@@ -69,13 +69,68 @@ const submitComplaint = asyncHandler(async (req, res) => {
 });
 
 const getComplaints = asyncHandler(async (req, res) => {
-    const updatedComplaint = await Complaint.find({ raisedBy: req.user._id })
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { complaintId: { $regex: req.query.search, $options: 'i' } },
+            { category: { $regex: req.query.search, $options: 'i' } },
+            { subCategory: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const complaintMatch = {
+        raisedBy: req.user._id,
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(complaintMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    let updatedComplaint = await Complaint.find(complaintMatch)
         .sort({ createdAt: -1 }) // Sort by newest complaint first
         .populate("responses.responseBy", "userName email profile role phoneNo")
         .populate("raisedBy", "userName email profile role phoneNo");
 
+    // Apply pagination on combined results
+    updatedComplaint = updatedComplaint.slice(skip, skip + limit);
+
+    if (updatedComplaint.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
     return res.status(200).json(
-        new ApiResponse(200, updatedComplaint, "Complaint submitted successfully")
+        new ApiResponse(200, {
+            complaints: updatedComplaint,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Complaints fetched successfully.")
     );
 });
 
@@ -276,4 +331,153 @@ const getResponse = asyncHandler(async (req, res) => {
     );
 });
 
-export { submitComplaint, getComplaints, getComplaintDetails, addResponse, resolveComplaint, reopenComplaint, getResponse };
+const getPendingComplaints = asyncHandler(async (req, res) => {
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { complaintId: { $regex: req.query.search, $options: 'i' } },
+            { category: { $regex: req.query.search, $options: 'i' } },
+            { subCategory: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const complaintMatch = {
+        raisedBy: req.user._id,
+        status: "pending",
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(complaintMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    let updatedComplaint = await Complaint.find(complaintMatch)
+        .sort({ createdAt: -1 }) // Sort by newest complaint first
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
+
+    // Apply pagination on combined results
+    updatedComplaint = updatedComplaint.slice(skip, skip + limit);
+
+    if (updatedComplaint.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
+    return res.status(200).json(
+        new ApiResponse(200, {
+            complaints: updatedComplaint,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Complaints fetched successfully.")
+    );
+});
+
+const getResolvedComplaints = asyncHandler(async (req, res) => {
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+    
+    // Entry type filter
+    if (req.query.entryType) {
+        filters.entryType = req.query.entryType;
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { complaintId: { $regex: req.query.search, $options: 'i' } },
+            { category: { $regex: req.query.search, $options: 'i' } },
+            { subCategory: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const complaintMatch = {
+        raisedBy: req.user._id,
+        status: "resolved",
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(complaintMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    let updatedComplaint = await Complaint.find(complaintMatch)
+        .sort({ createdAt: -1 }) // Sort by newest complaint first
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
+
+    // Apply pagination on combined results
+    updatedComplaint = updatedComplaint.slice(skip, skip + limit);
+
+    if (updatedComplaint.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+    
+    return res.status(200).json(
+        new ApiResponse(200, {
+            complaints: updatedComplaint,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Complaints fetched successfully.")
+    );
+});
+
+export {
+    submitComplaint,
+    getComplaints,
+    getComplaintDetails,
+    addResponse,
+    resolveComplaint,
+    reopenComplaint,
+    getResponse,
+    getPendingComplaints,
+    getResolvedComplaints,
+};

@@ -24,7 +24,7 @@ const addDeliveryEntry = asyncHandler(async (req, res) => {
     }
 
     const parsedSocietyDetails = JSON.parse(societyDetails);
-    
+
     const results = await ProfileVerification.find({
         residentStatus: 'approve',
         societyName: parsedSocietyDetails.societyName,
@@ -195,7 +195,7 @@ const addDeliveryEntryStringImg = asyncHandler(async (req, res) => {
                     profile: item.user.profile
                 };
             });
-            
+
             // Return updated apartment object with members for all entry types
             return {
                 ...apartment,
@@ -319,7 +319,7 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                 pipeline: [
                     {
                         $match: {
-                            $expr: { 
+                            $expr: {
                                 $cond: {
                                     if: { $isArray: "$$memberIds" },
                                     then: { $in: ["$_id", "$$memberIds"] },
@@ -370,7 +370,7 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
                         members: {
                             $cond: {
                                 if: { $eq: [{ $size: "$memberDetails" }, 0] },
-                                then: { 
+                                then: {
                                     $cond: {
                                         if: { $isArray: "$societyDetails.societyApartments.members" },
                                         then: "$societyDetails.societyApartments.members",
@@ -2429,12 +2429,82 @@ const getOtherEntries = asyncHandler(async (req, res) => {
 const getCheckoutHistroy = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.entryTime = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    if (req.query.checkinTime) {
+        const startDate = new Date(req.query.checkinTime);
+        startDate.setHours(0, 0, 0, 0); // Set to start of day
+        const endDate = new Date(req.query.checkinTime);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.entryTime = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Entry type filter
+    if (req.query.entryType) {
+        filters.entryType = req.query.entryType;
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { name: { $regex: req.query.search, $options: 'i' } },
+            { companyName: { $regex: req.query.search, $options: 'i' } },
+            { serviceName: { $regex: req.query.search, $options: 'i' } },
+            { mobNumber: { $regex: req.query.search, $options: 'i' } }
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    let deliveryEntryMatch = {
+        "societyDetails.societyName": user.societyName,
+        hasExited: true,
+        ...filters
+    };
+
+    // Base match conditions for PreApproved (regular)
+    let preApprovedMatch = {
+        'allowedBy.status': 'approve',
+        hasExited: true,
+        societyName: user.societyName,
+        blockName: user.societyBlock,
+        apartment: user.apartment,
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const [deliveryCount, preApprovedCount] = await Promise.all([
+        DeliveryEntry.countDocuments(deliveryEntryMatch),
+        PreApproved.countDocuments(preApprovedMatch),
+    ]);
+
+    const totalCount = deliveryCount + preApprovedCount;
+    const totalPages = Math.ceil(totalCount / limit);
+
     const deliveryEntry = await DeliveryEntry.aggregate([
         {
-            $match: {
-                "societyDetails.societyName": user.societyName,
-                hasExited: true,
-            },
+            $match: deliveryEntryMatch,
         },
         {
             $lookup: {
@@ -2577,13 +2647,7 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
 
     const preApprovedEntry = await PreApproved.aggregate([
         {
-            $match: {
-                'allowedBy.status': 'approve',
-                hasExited: true,
-                societyName: user.societyName,
-                blockName: user.societyBlock,
-                apartment: user.apartment,
-            },
+            $match: preApprovedMatch,
         },
         {
             $lookup: {
@@ -2669,21 +2733,33 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
         },
     ]);
 
-    const response = [...deliveryEntry, ...preApprovedEntry];
+    let response = [...deliveryEntry, ...preApprovedEntry];
 
     // Sort by exitTime in descending order (fallback to entryTime if exitTime is missing)
-    const sortedResponse = response.sort((a, b) => {
+    response.sort((a, b) => {
         const timeA = new Date(a.exitTime || a.entryTime || 0).getTime();
         const timeB = new Date(b.exitTime || b.entryTime || 0).getTime();
         return timeB - timeA;
     });
 
-    if (sortedResponse.length <= 0) {
-        throw new ApiError(500, "There is no entry");
+    // Apply pagination on combined results
+    response = response.slice(skip, skip + limit);
+
+    if (response.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, sortedResponse, "Past entries fetched successfully.")
+        new ApiResponse(200, {
+            checkoutEntries: response,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Past entries fetched successfully.")
     );
 });
 
@@ -3093,417 +3169,66 @@ const getCurrentDeliveryEntries = asyncHandler(async (req, res) => {
     );
 });
 
-// const getPastDeliveryEntries = asyncHandler(async (req, res) => {
-//     const user = await ProfileVerification.findOne({ user: req.user._id });
-//     if (!user) {
-//         throw new ApiError(500, "No resident found");
-//     }
-
-//     const deliveryEntry = await DeliveryEntry.aggregate([
-//         {
-//             $match: {
-//                 "societyDetails.societyName": user.societyName,
-//                 'guardStatus.status': 'approve',
-//                 hasExited: true,
-//             },
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { userId: "$guardStatus.guard" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$userId"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             profile: 1,
-//                             email: 1,
-//                             role: 1,
-//                             phoneNo: 1,
-//                         }
-//                     }
-//                 ],
-//                 as: "guardStatus.guard"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$guardStatus.guard",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         // Unwind the societyApartments array
-//         {
-//             $unwind: {
-//                 path: "$societyDetails.societyApartments",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$approvedById"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             email: 1
-//                         }
-//                     }
-//                 ],
-//                 as: "societyDetails.societyApartments.entryStatus.approvedBy"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$societyDetails.societyApartments.entryStatus.approvedBy",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$rejectedById"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             email: 1
-//                         }
-//                     }
-//                 ],
-//                 as: "societyDetails.societyApartments.entryStatus.rejectedBy"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         // Rebuild societyApartments array
-//         {
-//             $group: {
-//                 _id: {
-//                     id: "$_id", // group by document ID
-//                     societyName: "$societyDetails.societyName",
-//                     societyGates: "$societyDetails.societyGates"
-//                 },
-//                 societyApartments: { $push: "$societyDetails.societyApartments" }, // rebuild the array
-//                 name: { $first: "$name" },
-//                 mobNumber: { $first: "$mobNumber" },
-//                 profileImg: { $first: "$profileImg" },
-//                 companyName: { $first: "$companyName" },
-//                 companyLogo: { $first: "$companyLogo" },
-//                 vehicleDetails: { $first: "$vehicleDetails" },
-//                 entryType: { $first: "$entryType" },
-//                 guardStatus: { $first: "$guardStatus" },
-//                 entryTime: { $first: "$entryTime" },
-//                 exitTime: { $first: "$exitTime" },
-//                 notificationId: { $first: "$notificationId" },
-//                 hasExited: { $first: "$hasExited" }
-//             }
-//         },
-//         // Rebuild societyDetails field
-//         {
-//             $project: {
-//                 _id: "$_id.id",
-//                 name: 1,
-//                 mobNumber: 1,
-//                 profileImg: 1,
-//                 companyName: 1,
-//                 companyLogo: 1,
-//                 vehicleDetails: 1,
-//                 entryType: 1,
-//                 guardStatus: 1,
-//                 societyDetails: {
-//                     societyName: "$_id.societyName",
-//                     societyGates: "$_id.societyGates",
-//                     societyApartments: "$societyApartments"
-//                 },
-//                 entryTime: 1,
-//                 exitTime: 1,
-//                 notificationId: 1,
-//                 hasExited: 1
-//             }
-//         },
-//         {
-//             $project: {
-//                 _id: 1,
-//                 guardStatus: 1,
-//                 name: 1,
-//                 mobNumber: 1,
-//                 profileImg: 1,
-//                 companyName: 1,
-//                 companyLogo: 1,
-//                 vehicleDetails: 1,
-//                 entryType: 1,
-//                 entryTime: 1,
-//                 exitTime: 1,
-//                 hasExited: 1,
-//                 notificationId: 1,
-//                 societyDetails: {
-//                     societyName: "$societyDetails.societyName",
-//                     societyGates: "$societyDetails.societyGates",
-//                     societyApartments: {
-//                         $filter: {
-//                             input: "$societyDetails.societyApartments",
-//                             as: "apartment",
-//                             cond: {
-//                                 $and: [
-//                                     { $eq: ["$$apartment.societyBlock", user.societyBlock] },
-//                                     { $eq: ["$$apartment.apartment", user.apartment] },
-//                                 ],
-//                             },
-//                         },
-//                     },
-//                 },
-//             },
-//         },
-//     ]);
-
-//     const preApprovedEntry = await PreApproved.aggregate([
-//         {
-//             $match: {
-//                 'allowedBy.status': 'approve',
-//                 hasExited: true,
-//                 societyName: user.societyName,
-//                 blockName: user.societyBlock,
-//                 apartment: user.apartment,
-//             },
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { userId: "$approvedBy.user" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$userId"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             profile: 1,
-//                             email: 1,
-//                             role: 1,
-//                             phoneNo: 1,
-//                         }
-//                     }
-//                 ],
-//                 as: "approvedBy.user"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$approvedBy.user",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { userId: "$allowedBy.user" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$userId"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             profile: 1,
-//                             email: 1,
-//                             role: 1,
-//                             phoneNo: 1,
-//                         }
-//                     }
-//                 ],
-//                 as: "allowedBy.user"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$allowedBy.user",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         {
-//             $project: {
-//                 allowedBy: 1,
-//                 approvedBy: 1,
-//                 name: 1,
-//                 mobNumber: 1,
-//                 profileImg: 1,
-//                 companyName: 1,
-//                 companyLogo: 1,
-//                 serviceName: 1,
-//                 serviceLogo: 1,
-//                 vehicleDetails: 1,
-//                 profileType: 1,
-//                 entryType: 1,
-//                 societyName: 1,
-//                 blockName: 1,
-//                 apartment: 1,
-//                 entryTime: 1,
-//                 exitTime: 1,
-//                 hasExited: 1,
-//             },
-//         },
-//     ]);
-
-//     const preApprovedServiceEntry = await PreApproved.aggregate([
-//         {
-//             $match: {
-//                 'allowedBy.status': 'approve',
-//                 hasExited: true,
-//                 societyName: user.societyName,
-//                 "gatepassAptDetails.societyApartments": {
-//                     $elemMatch: {
-//                         $or: [
-//                             {
-//                                 "societyBlock": user.societyBlock,
-//                                 "apartment": user.apartment
-//                             }
-//                         ]
-//                     }
-//                 }
-//             }
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { userId: "$approvedBy.user" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$userId"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             profile: 1,
-//                             email: 1,
-//                             role: 1,
-//                             phoneNo: 1,
-//                         }
-//                     }
-//                 ],
-//                 as: "approvedBy.user"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$approvedBy.user",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         {
-//             $lookup: {
-//                 from: "users",
-//                 let: { userId: "$allowedBy.user" },
-//                 pipeline: [
-//                     {
-//                         $match: {
-//                             $expr: { $eq: ["$_id", "$$userId"] }
-//                         }
-//                     },
-//                     {
-//                         $project: {
-//                             _id: 1,
-//                             userName: 1,
-//                             profile: 1,
-//                             email: 1,
-//                             role: 1,
-//                             phoneNo: 1,
-//                         }
-//                     }
-//                 ],
-//                 as: "allowedBy.user"
-//             }
-//         },
-//         {
-//             $unwind: {
-//                 path: "$allowedBy.user",
-//                 preserveNullAndEmptyArrays: true
-//             }
-//         },
-//         {
-//             $project: {
-//                 allowedBy: 1,
-//                 approvedBy: 1,
-//                 name: 1,
-//                 mobNumber: 1,
-//                 profileImg: 1,
-//                 companyName: 1,
-//                 companyLogo: 1,
-//                 serviceName: 1,
-//                 serviceLogo: 1,
-//                 vehicleDetails: 1,
-//                 profileType: 1,
-//                 entryType: 1,
-//                 societyName: 1,
-//                 blockName: 1,
-//                 apartment: 1,
-//                 entryTime: 1,
-//                 exitTime: 1,
-//                 hasExited: 1,
-//             },
-//         },
-//     ]);
-
-//     const response = [...deliveryEntry, ...preApprovedEntry, ...preApprovedServiceEntry];
-
-//     if (response.length <= 0) {
-//         throw new ApiError(500, "There is no entry");
-//     }
-
-//     return res.status(200).json(
-//         new ApiResponse(200, response, "Past entries fetched successfully.")
-//     );
-// });
-
 const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
     if (!user) {
         throw new ApiError(500, "No resident found");
     }
 
-    const deliveryEntry = await DeliveryEntry.aggregate([
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.entryTime = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    // Entry type filter
+    if (req.query.entryType) {
+        filters.entryType = req.query.entryType;
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { name: { $regex: req.query.search, $options: 'i' } },
+            { companyName: { $regex: req.query.search, $options: 'i' } },
+            { serviceName: { $regex: req.query.search, $options: 'i' } },
+            { mobNumber: { $regex: req.query.search, $options: 'i' } }
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const deliveryEntryMatch = {
+        'societyDetails.societyName': user.societyName,
+        'societyDetails.societyApartments': {
+            $elemMatch: {
+                societyBlock: user.societyBlock,
+                apartment: user.apartment,
+                'entryStatus.status': 'rejected'
+            }
+        },
+        ...filters
+    };
+
+    const totalCount = await DeliveryEntry.countDocuments(deliveryEntryMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    let deliveryEntry = await DeliveryEntry.aggregate([
         {
-            $match: {
-                'societyDetails.societyName': user.societyName,
-                'societyDetails.societyApartments': {
-                    $elemMatch: {
-                        societyBlock: user.societyBlock,
-                        apartment: user.apartment,
-                        'entryStatus.status': 'rejected'
-                    }
-                },
-            },
+            $match: deliveryEntryMatch,
         },
         {
             $lookup: {
@@ -3678,16 +3403,30 @@ const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
                         },
                     },
                 },
+                createdAt: 1,
+                updatedAt: 1,
             },
         },
     ]);
+
+    // Apply pagination on combined results
+    deliveryEntry = deliveryEntry.slice(skip, skip + limit);
 
     if (deliveryEntry.length <= 0) {
         throw new ApiError(500, "There is no entry");
     }
 
     return res.status(200).json(
-        new ApiResponse(200, deliveryEntry, "Denied entries fetched successfully.")
+        new ApiResponse(200, {
+            entries: deliveryEntry,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Denied entries fetched successfully.")
     );
 });
 

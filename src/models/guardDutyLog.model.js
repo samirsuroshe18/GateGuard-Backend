@@ -18,6 +18,10 @@ const guardDutyLogSchema = new Schema({
     checkoutReason: {
         type: String,
     },
+    
+    shift: {
+        type: String,
+    },
 
     date: {
         type: Date

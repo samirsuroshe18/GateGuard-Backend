@@ -144,6 +144,7 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
 
         existedUser.email = email;
         existedUser.FCMToken = FCMToken;
+        existedUser.profile = existedUser.profile || profile;
         await existedUser.save({ validateBeforeSave: false });
 
         //option object is created beacause we dont want to modified the cookie to front side

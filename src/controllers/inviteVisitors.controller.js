@@ -723,12 +723,67 @@ const getGatePass = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Access Denied: You are no longer a registered resident of this society");
     }
 
-    const checkInCode = await CheckInCode.aggregate([
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Date range filter
+    if (req.query.startDate && req.query.endDate) {
+        const startDate = new Date(req.query.startDate);
+        const endDate = new Date(req.query.endDate);
+        endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+        filters.checkInCodeStartDate = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+     // Entry type filter
+     if (req.query.status) {
+        const currentDate = new Date();
+        
+        if (req.query.status === 'active') {
+            // Active: Current date is between start and expiry dates
+            filters.checkInCodeStartDate = { $lte: currentDate };
+            filters.checkInCodeExpiryDate = { $gte: currentDate };
+        } else if (req.query.status === 'expired') {
+            // Expired: Current date is after expiry date
+            filters.checkInCodeExpiryDate = { $lt: currentDate };
+        }
+        // For 'all', no additional filter needed
+    }
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { name: { $regex: req.query.search, $options: 'i' } },
+            { companyName: { $regex: req.query.search, $options: 'i' } },
+            { serviceName: { $regex: req.query.search, $options: 'i' } },
+            { mobNumber: { $regex: req.query.search, $options: 'i' } },
+            { "gatepassAptDetails.societyApartments.societyBlock": { $regex: req.query.search, $options: 'i' } },
+            { "gatepassAptDetails.societyApartments.apartment": { $regex: req.query.search, $options: 'i' } }
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const checkInCodeMatch = {
+        societyName: user.societyName,
+        entryType: 'service',
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const totalCount = await CheckInCode.countDocuments(checkInCodeMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    let response = await CheckInCode.aggregate([
         {
-            $match: {
-                societyName: user.societyName,
-                entryType: 'service',
-            },
+            $match: checkInCodeMatch,
         },
         {
             $lookup: {
@@ -786,8 +841,24 @@ const getGatePass = asyncHandler(async (req, res) => {
         }
     ]);
 
+    // Apply pagination on combined results
+    response = response.slice(skip, skip + limit);
+
+    if (response.length <= 0) {
+        throw new ApiError(404, "No entries found matching your criteria");
+    }
+
     return res.status(200).json(
-        new ApiResponse(200, checkInCode, "Gatepass entry fetched successfully")
+        new ApiResponse(200, {
+            gatePassBanner: response,
+            pagination: {
+                totalEntries: totalCount,
+                entriesPerPage: limit,
+                currentPage: page,
+                totalPages: totalPages,
+                hasMore: page < totalPages
+            }
+        }, "Gate pass fetched successfully.")
     );
 });
 
