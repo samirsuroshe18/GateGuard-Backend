@@ -707,7 +707,7 @@ const getDeliveryServiceRequest = asyncHandler(async (req, res) => {
     );
 });
 
-const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
+const getDeliveryAllowedEntries = asyncHandler(async (req, res) => { 
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
     if (!user) {
@@ -2320,7 +2320,7 @@ const getOtherEntries = asyncHandler(async (req, res) => {
             $match: {
                 'allowedBy.status': 'approve',
                 hasExited: false,
-                entryType: 'other',
+                entryType: { $in: ['other', 'service'] },
                 societyName: user.societyName,
             },
         },
