@@ -185,7 +185,7 @@ const getGuardLogs = asyncHandler(async (req, res) => {
     }
 
     // Shift filter
-    if (req.query.shift) {
+    if (req.query.shift && req.query.shift !== "All Shifts") {
         filters.shift = req.query.shift;
     }
 

@@ -707,7 +707,7 @@ const getDeliveryServiceRequest = asyncHandler(async (req, res) => {
     );
 });
 
-const getDeliveryAllowedEntries = asyncHandler(async (req, res) => { 
+const getDeliveryAllowedEntries = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
     if (!user) {

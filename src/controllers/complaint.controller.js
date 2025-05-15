@@ -134,7 +134,6 @@ const getComplaints = asyncHandler(async (req, res) => {
     );
 });
 
-
 const getComplaintDetails = asyncHandler(async (req, res) => {
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
     const complaint = await Complaint.findById(id)
