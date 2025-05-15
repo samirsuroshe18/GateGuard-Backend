@@ -1,4 +1,4 @@
-import asyncHandler from '../utils/asynchandler.js';
+import asyncHandler from '../utils/asynchandler.js'; 
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
@@ -185,7 +185,7 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
     const FCMTokens = profile.map((item) => item.user?.FCMToken).filter((token) => token != null);
 
     let payload = {
-        guardName: security.userName,
+        guardName: req.user.userName,
         entryType: checkInCodeEntry.entryType,
         deliveryName: checkInCodeEntry.name,
         action: 'NOTIFY_CHECKED_IN_ENTRY'

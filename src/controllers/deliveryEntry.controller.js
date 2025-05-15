@@ -504,6 +504,249 @@ const waitingForResidentApprovalEntries = asyncHandler(async (req, res) => {
     );
 });
 
+const getWaitingEntry = asyncHandler(async (req, res) => {
+    const userId = mongoose.Types.ObjectId.createFromHexString(req.params.id);
+
+    const society = await ProfileVerification.findOne({ user: req.user._id, profileType: 'Security' });
+
+    if (!society) {
+        throw new ApiError(500, "You are not security guard");
+    }
+
+    const deliveryEntry = await DeliveryEntry.aggregate([
+        {
+            $match: {
+                _id: userId,
+                'societyDetails.societyName': society.societyName,
+                'guardStatus.guard': req.user._id,
+                'guardStatus.status': 'pending'
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { userId: "$guardStatus.guard" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$userId"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            profile: 1,
+                            email: 1,
+                            role: 1,
+                            phoneNo: 1,
+                        }
+                    }
+                ],
+                as: "guardStatus.guard"
+            }
+        },
+        {
+            $unwind: {
+                path: "$guardStatus.guard",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Unwind the societyApartments array
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        // Lookup for members for all entry types
+        {
+            $lookup: {
+                from: "users",
+                let: { memberIds: "$societyDetails.societyApartments.members" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $cond: {
+                                    if: { $isArray: "$$memberIds" },
+                                    then: { $in: ["$_id", "$$memberIds"] },
+                                    else: false
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            email: 1,
+                            userName: 1,
+                            phoneNo: 1,
+                            profile: 1
+                        }
+                    }
+                ],
+                as: "memberDetails"
+            }
+        },
+        // Project stage to ensure consistent structure
+        {
+            $project: {
+                _id: 1,
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1,
+                societyDetails: {
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates",
+                    societyApartments: {
+                        societyBlock: "$societyDetails.societyApartments.societyBlock",
+                        apartment: "$societyDetails.societyApartments.apartment",
+                        entryStatus: "$societyDetails.societyApartments.entryStatus",
+                        // Ensure members is always an array (either from lookup or empty)
+                        members: {
+                            $cond: {
+                                if: { $eq: [{ $size: "$memberDetails" }, 0] },
+                                then: {
+                                    $cond: {
+                                        if: { $isArray: "$societyDetails.societyApartments.members" },
+                                        then: "$societyDetails.societyApartments.members",
+                                        else: []
+                                    }
+                                },
+                                else: "$memberDetails"
+                            }
+                        }
+                    }
+                },
+                createdAt: 1
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { approvedById: "$societyDetails.societyApartments.entryStatus.approvedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$approvedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.approvedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.approvedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { rejectedById: "$societyDetails.societyApartments.entryStatus.rejectedBy" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$_id", "$$rejectedById"] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            userName: 1,
+                            email: 1
+                        }
+                    }
+                ],
+                as: "societyDetails.societyApartments.entryStatus.rejectedBy"
+            }
+        },
+        {
+            $unwind: {
+                path: "$societyDetails.societyApartments.entryStatus.rejectedBy",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    id: "$_id",
+                    societyName: "$societyDetails.societyName",
+                    societyGates: "$societyDetails.societyGates"
+                },
+                societyApartments: { $push: "$societyDetails.societyApartments" },
+                name: { $first: "$name" },
+                mobNumber: { $first: "$mobNumber" },
+                profileImg: { $first: "$profileImg" },
+                companyName: { $first: "$companyName" },
+                companyLogo: { $first: "$companyLogo" },
+                serviceName: { $first: "$serviceName" },
+                serviceLogo: { $first: "$serviceLogo" },
+                vehicleDetails: { $first: "$vehicleDetails" },
+                entryType: { $first: "$entryType" },
+                guardStatus: { $first: "$guardStatus" },
+                entryTime: { $first: "$entryTime" },
+                exitTime: { $first: "$exitTime" },
+                notificationId: { $first: "$notificationId" },
+                hasExited: { $first: "$hasExited" },
+                createdAt: { $first: "$createdAt" }
+            }
+        },
+        {
+            $project: {
+                _id: "$_id.id",
+                name: 1,
+                mobNumber: 1,
+                profileImg: 1,
+                companyName: 1,
+                companyLogo: 1,
+                serviceName: 1,
+                serviceLogo: 1,
+                vehicleDetails: 1,
+                entryType: 1,
+                guardStatus: 1,
+                entryTime: 1,
+                exitTime: 1,
+                notificationId: 1,
+                hasExited: 1,
+                societyDetails: {
+                    societyName: "$_id.societyName",
+                    societyGates: "$_id.societyGates",
+                    societyApartments: "$societyApartments"
+                },
+            }
+        },
+    ]);
+
+    if (deliveryEntry.length <= 0) {
+        throw new ApiError(500, "There is no waiting request.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, deliveryEntry[0], "Delivery waiting request fetched successfully.")
+    );
+});
+
 const getDeliveryServiceRequest = asyncHandler(async (req, res) => {
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
@@ -1245,7 +1488,7 @@ const allowDeliveryBySecurity = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Wait for resident response");
     }
 
-    delivery.guardStatus.status = 'approve';
+    delivery.guardStatus.status =  'approve';
     delivery.guardStatus.guard = req.user._id;
     delivery.entryTime = new Date();
     const result = await delivery.save({ validateBeforeSave: false });
@@ -3220,6 +3463,7 @@ const getDeniedDeliveryEntries = asyncHandler(async (req, res) => {
                 'entryStatus.status': 'rejected'
             }
         },
+        'guardStatus.status': { $in: ['approve', 'rejected'] },
         ...filters
     };
 
@@ -3931,5 +4175,6 @@ export {
     getDeliveryEntries,
     getCabEntries,
     getOtherEntries,
-    getCheckoutHistroy
+    getCheckoutHistroy,
+    getWaitingEntry
 }

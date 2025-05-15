@@ -17,6 +17,7 @@ import {
     getGuestEntries,
     getOtherEntries,
     getPastDeliveryEntries,
+    getWaitingEntry,
     rejectDelivery,
     waitingForResidentApprovalEntries
 } from "../controllers/deliveryEntry.controller.js";
@@ -29,6 +30,7 @@ const router = Router();
 router.route('/add-delivery-entry').post(verifyJwt, verifyGuard, upload.single("profileImg"), addDeliveryEntry);
 router.route('/add-delivery-entry-2').post(verifyJwt, verifyGuard, addDeliveryEntryStringImg);
 router.route('/get-delivery-waiting-entries').get(verifyJwt, verifyGuard, waitingForResidentApprovalEntries);
+router.route('/get-waiting-entry/:id').get(verifyJwt, verifyGuard, getWaitingEntry);
 router.route('/allow-delivery-entries').post(verifyJwt, verifyGuard, allowDeliveryBySecurity);
 router.route('/deny-delivery-entries').post(verifyJwt, verifyGuard, denyDeliveryBySecurity);
 router.route('/get-allowed-entries').get(verifyJwt, verifyGuard, getDeliveryAllowedEntries);
