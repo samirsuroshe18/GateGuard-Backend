@@ -2731,8 +2731,6 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
         'allowedBy.status': 'approve',
         hasExited: true,
         societyName: user.societyName,
-        blockName: user.societyBlock,
-        apartment: user.apartment,
         ...filters
     };
 
@@ -2800,7 +2798,9 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
                         $project: {
                             _id: 1,
                             userName: 1,
-                            email: 1
+                            email: 1,
+                            phoneNo: 1,
+                            profile: 1,
                         }
                     }
                 ],
@@ -2827,7 +2827,9 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
                         $project: {
                             _id: 1,
                             userName: 1,
-                            email: 1
+                            email: 1,
+                            phoneNo: 1,
+                            profile: 1,
                         }
                     }
                 ],
@@ -2977,6 +2979,8 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
     ]);
 
     let response = [...deliveryEntry, ...preApprovedEntry];
+
+    console.log("Response", response);
 
     // Sort by exitTime in descending order (fallback to entryTime if exitTime is missing)
     response.sort((a, b) => {

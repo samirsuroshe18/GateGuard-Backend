@@ -150,6 +150,17 @@ const getComplaintDetails = asyncHandler(async (req, res) => {
 });
 
 const addResponse = asyncHandler(async (req, res) => {
+
+    const complaintStatus = await Complaint.findOne({ complaintId: req.params.id });
+
+    if (!complaintStatus) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    if (complaintStatus?.status === "resolved") {
+        throw new ApiError(404, "This complaint has already been resolved. You cannot send new messages.");
+    }
+
     const complaint = await Complaint.findOneAndUpdate(
         { complaintId: req.params.id },
         {
@@ -165,10 +176,6 @@ const addResponse = asyncHandler(async (req, res) => {
     ).populate("responses.responseBy", "userName email profile role phoneNo")
         .populate("raisedBy", "userName email profile role phoneNo FCMToken")
         .exec();
-
-    if (!complaint) {
-        throw new ApiError(404, "Complaint not found");
-    }
 
     if (complaint.raisedBy._id.toString() === req.user._id.toString()) {
         const users = await ProfileVerification.find({ societyName: complaint.societyName })
