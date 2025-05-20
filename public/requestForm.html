@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Delete Account – Gloria Connect</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; }
+    .container { max-width: 500px; margin: auto; background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px #ddd; }
+    h1 { color: #0077cc; }
+    label { margin-top: 1em; display: block; }
+    input, textarea { width: 100%; padding: 0.5em; margin-top: 0.5em; }
+    button { background: #0077cc; color: #fff; border: none; padding: 1em 2em; border-radius: 4px; margin-top: 1em; cursor: pointer; }
+    button:hover { background: #005fa3; }
+    .note { color: #888; font-size: 0.9em; margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Delete Account Request</h1>
+    <p>Fill out this form to request deletion of your Gloria Connect account and all associated data.</p>
+    <form action="mailto:sameersuroshe50@gmail.com" method="POST" enctype="text/plain">
+      <label for="email">Registered Email Address:</label>
+      <input type="email" id="email" name="email" required>
+
+      <label for="userid">User ID (if known):</label>
+      <input type="text" id="userid" name="userid">
+
+      <label for="reason">Reason for deletion (optional):</label>
+      <textarea id="reason" name="reason"></textarea>
+
+      <button type="submit">Request Deletion</button>
+    </form>
+    <div class="note">
+      <p>We will process your request within 7 business days. For questions, contact <a href="mailto:sameersuroshe50@gmail.com">sameersuroshe50@gmail.com</a>.</p>
+    </div>
+  </div>
+</body>
+</html>
