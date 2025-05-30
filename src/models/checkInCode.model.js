@@ -79,15 +79,48 @@ const checkInCodeSchema = new Schema({
                 type: String,
                 required: true,
             },
+            societyGates: {
+                type: String,
+            },
             societyApartments: {
                 type: [
                     {
                         societyBlock: String,
                         apartment: String,
+                        members: {
+                            type: [{}]
+                        },
+                        entryStatus: {
+                            status: {
+                                type: String,
+                                enum: ['pending', 'approve', 'rejected'],
+                                default: 'pending'
+                            },
+                            approvedBy: {
+                                type: Schema.Types.ObjectId,
+                                ref: "User"
+                            },
+                            rejectedBy: {
+                                type: Schema.Types.ObjectId,
+                                ref: "User"
+                            }
+                        }
                     }
                 ],
                 default: [],
             },
+        },
+    },
+
+    guardStatus: {
+        guard: {
+            type: Schema.Types.ObjectId,
+            ref: "User"
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'approve', 'rejected'],
+            default: 'pending'
         },
     },
 
@@ -96,12 +129,12 @@ const checkInCodeSchema = new Schema({
         trim: true,
     },
 
-    address:{
+    address: {
         type: String,
         trim: true,
     },
 
-    gender : {
+    gender: {
         type: String,
         trim: true,
     },

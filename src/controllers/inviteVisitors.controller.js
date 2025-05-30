@@ -8,6 +8,7 @@ import { PreApproved } from '../models/preApproved.model.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../utils/sendResidentNotification.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
+import { User } from '../models/user.model.js';
 
 const addPreApproval = asyncHandler(async (req, res) => {
     const { name, mobNumber, profileImg, companyName, companyLogo, serviceName, serviceLogo, vehicleNo, entryType, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate, } = req.body;
@@ -608,11 +609,11 @@ const getPastEntry = asyncHandler(async (req, res) => {
 });
 
 const addGatePass = asyncHandler(async (req, res) => {
-    const { name, mobNumber, serviceName, gender, serviceLogo, address, entryType, gatepassApiDetails, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate } = req.body;
+    const { name, mobNumber, serviceName, gender, serviceLogo, address, entryType, aptDetails, checkInCodeStart, checkInCodeExpiry, checkInCodeStartDate, checkInCodeExpiryDate } = req.body;
     const user = await ProfileVerification.findOne({ user: req.user._id });
 
     if (!user) {
-        throw new ApiError(404, "Access Denied: You are no longer a registered resident of this society");
+        throw new ApiError(404, "Access Denied: You are no longer a registered security of this society");
     }
 
     const uploadedFiles = [];
@@ -626,22 +627,73 @@ const addGatePass = asyncHandler(async (req, res) => {
         });
     }
 
+    let parsedAptDetails = JSON.parse(aptDetails);
+
+    const results = await ProfileVerification.find({
+        residentStatus: 'approve',
+        societyName: user.societyName,
+        $or: parsedAptDetails
+    }).populate('user', 'FCMToken');
+
+    const fcmToken = results
+        .map(item => item.user?.FCMToken) // Use optional chaining in case user is null
+        .filter(token => !!token); // Remove undefined/null tokens
+
+    if (fcmToken.length <= 0) {
+        throw new ApiError(500, "No resident found or apartment is vacant");
+    }
+
+    // Iterate through societyApartments and add members for all entry types
+    const updatedApartments = await Promise.all(
+        parsedAptDetails.map(async (apartment) => {
+            // Query ProfileVerification model to find members matching the criteria
+            const members = await ProfileVerification.find({
+                societyName: user.societyName,
+                societyBlock: apartment.societyBlock,
+                apartment: apartment.apartment,
+            }).populate('user');
+
+            const filteredData = members.map(item => {
+                return {
+                    _id: item.user._id,
+                    email: item.user.email,
+                    userName: item.user.userName,
+                    phoneNo: item.user.phoneNo,
+                    profile: item.user.profile
+                };
+            });
+
+            // Return updated apartment object with members included regardless of entryType
+            return {
+                ...apartment,
+                members: filteredData,
+            };
+        })
+    );
+
+    // Update societyDetails with the modified societyApartments array
+    parsedAptDetails = updatedApartments;
+
     const preApprovalEntry = await CheckInCode.create({
         approvedBy: req.user._id,
         name: name,
         mobNumber: mobNumber,
-        profileImg: uploadedFiles[0].url,
+        profileImg: uploadedFiles[0]?.secure_url,
         serviceName: serviceName,
         serviceLogo: serviceLogo,
         gender: gender,
         entryType: entryType,
         address: address,
-        addressProof: uploadedFiles[1].url,
+        addressProof: uploadedFiles[1]?.secure_url,
         gatepassAptDetails: {
             societyName: user.societyName,
-            societyApartments: JSON.parse(gatepassApiDetails),
+            societyApartments: parsedAptDetails,
+            societyGates: user.gateAssign || "",
         },
         societyName: user.societyName,
+        guardStatus: {
+            guard: req.user._id,
+        },
         checkInCode: await generateCheckInCode(user.societyName),
         checkInCodeStart: new Date(checkInCodeStart),
         checkInCodeExpiry: new Date(checkInCodeExpiry),
@@ -712,6 +764,16 @@ const addGatePass = asyncHandler(async (req, res) => {
         },
     ]);
 
+    const payload = {
+        gatePassId: checkInCode[0]._id,
+        message: "Security has sent a gate pass request for a visitor to your apartment. Please review and approve.",
+        action: 'NOTIFY_GATE_PASS'
+    };
+
+    fcmToken.forEach(token => {
+        sendNotification(token, payload.action, JSON.stringify(payload));
+    });
+
     return res.status(200).json(
         new ApiResponse(200, checkInCode[0], "Service added successfully")
     );
@@ -743,10 +805,10 @@ const getGatePass = asyncHandler(async (req, res) => {
         };
     }
 
-     // Entry type filter
-     if (req.query.status) {
+    // Entry type filter
+    if (req.query.status) {
         const currentDate = new Date();
-        
+
         if (req.query.status === 'active') {
             // Active: Current date is between start and expiry dates
             filters.checkInCodeStartDate = { $lte: currentDate };
@@ -862,6 +924,52 @@ const getGatePass = asyncHandler(async (req, res) => {
     );
 });
 
+const getGatePassDetails = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const gatePassId = new mongoose.Types.createFromHexString(id);
+    const user = await ProfileVerification.findOne({ user: req.user._id });
+
+    if (!user) {
+        throw new ApiError(403, "Access Denied: You are no longer a registered resident of this society");
+    }
+
+    const gatePass = await CheckInCode.findById(gatePassId)
+        .populate([
+            { path: "user", select: "_id userName phoneNo profile email role" },
+            { path: "approvedBy", select: "_id userName phoneNo profile email role" },
+            { path: "guardStatus.guard", select: "_id userName phoneNo profile email role" },
+        ])
+        .lean(); // optional: improves performance if no further Mongoose ops needed
+
+    if (!gatePass) {
+        throw new ApiError(404, "Gate pass not found");
+    }
+
+    // Manual population for nested `gatepassAptDetails.societyApartments[].entryStatus.approvedBy`
+    if (gatePass?.gatepassAptDetails?.societyApartments?.length) {
+        for (const apt of gatePass.gatepassAptDetails.societyApartments) {
+            const approvedBy = apt.entryStatus?.approvedBy;
+            const rejectedBy = apt.entryStatus?.rejectedBy;
+
+            if (approvedBy) {
+                apt.entryStatus.approvedBy = await User.findById(approvedBy)
+                    .select("_id userName phoneNo email role")
+                    .lean();
+            }
+
+            if (rejectedBy) {
+                apt.entryStatus.rejectedBy = await User.findById(rejectedBy)
+                    .select("_id userName phoneNo email role")
+                    .lean();
+            }
+        }
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, gatePass, "Gate pass details fetched successfully.")
+    );
+});
+
 export {
     addPreApproval,
     reSchedule,
@@ -871,4 +979,5 @@ export {
     getPastEntry,
     addGatePass,
     getGatePass,
+    getGatePassDetails
 }
