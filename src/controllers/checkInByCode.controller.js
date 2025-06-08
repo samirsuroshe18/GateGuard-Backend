@@ -39,6 +39,10 @@ const checkInByCodeEntry = asyncHandler(async (req, res) => {
         throw new ApiError(500, "CheckIn code is invalid or expired.");
     }
 
+    if(checkInCodeExist?.entryType === 'service' && checkInCodeExist?.guardStatus?.status != 'approve') {
+        throw new ApiError(500, `Check-In Failed: Your gate pass is either not approved yet or has expired.`);
+    }
+
     let residentOrSecurityImg = null;
     if (checkInCodeExist.profileType != null && checkInCodeExist.profileType == 'Resident' || checkInCodeExist.profileType == 'Security') {
         const message = checkInCodeExist.profileType == 'Resident' ? "You are already registered as a resident. No new entry is required." : "You are already registered as a security guard. No new entry is required.";
