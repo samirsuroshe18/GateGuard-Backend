@@ -45,7 +45,7 @@ const registerUser = asyncHandler(async (req, res) => {
         email,
         password,
         userName,
-        expireDocAfterSeconds : new Date()
+        expireDocAfterSeconds: new Date()
     });
 
     const createdUser = await User.findById(user._id);
@@ -73,6 +73,31 @@ const loginUser = asyncHandler(async (req, res) => {
     }
 
     const user = await User.findOne({ email });
+
+    if (user.userType === "Technician") {
+        if (user.technicianPassword !== password) {
+            throw new ApiError(404, 'Invalid email or password');
+        }
+        const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+        const loggedInUser = await User.findById(user._id).select("-password -refreshToken -__v");
+        loggedInUser.FCMToken = FCMToken;
+        await loggedInUser.save({ validateBeforeSave: false });
+
+        //option object is created beacause we dont want to modified the cookie to front side
+        const option = {
+            httpOnly: true,
+            secure: true
+        }
+
+        return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
+            new ApiResponse(200, {
+                loggedInUser,
+                accessToken,
+                refreshToken
+            }, "User logged in sucessully")
+        );
+    }
 
     if (!user || !user?.password) {
         throw new ApiError(404, "Invalid credential");
@@ -301,6 +326,11 @@ const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
+    if(req.user.userType === 'Technician') {
+        return res.status(200).json(
+            new ApiResponse(200, req.user.toObject(), "Current user fetched successfully")
+        );
+    }
     const user = await CheckInCode.findOne({ user: req.user._id });
     const society = await ProfileVerification.findOne({ user: req.user._id });
     return res.status(200).json(
@@ -401,7 +431,7 @@ const addExtraInfo = asyncHandler(async (req, res) => {
         societyName: societyName,
         user: { $in: adminUserIds }
     }).populate('user', 'FCMToken');
-    
+
     const fcmToken = results
         .map(item => item.user?.FCMToken) // Use optional chaining in case user is null
         .filter(token => !!token); // Remove undefined/null tokens
@@ -553,15 +583,15 @@ const cancelNotification = asyncHandler(async (req, res) => {
 });
 
 const getContactEmail = asyncHandler(async (req, res) => {
-    const member = await ProfileVerification.findOne({user: req.user._id});
+    const member = await ProfileVerification.findOne({ user: req.user._id });
 
     if (!member) {
         throw new ApiError(500, "Something went wrong!!");
     }
 
-    const contactEmail = await User.findOne({societyName: member.societyName}).select("-isUserTypeVerified -role -isGoogleVerified -isVerified");
-    
-    if(!contactEmail){
+    const contactEmail = await User.findOne({ societyName: member.societyName }).select("-isUserTypeVerified -role -isGoogleVerified -isVerified");
+
+    if (!contactEmail) {
         throw new ApiError(400, "Email do not exist");
     }
 

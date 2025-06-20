@@ -7,6 +7,8 @@ import { CheckInCode } from '../models/checkInCode.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import mongoose from 'mongoose';
 import { Complaint } from '../models/complaint.model.js';
+import { generatePassword } from '../utils/generatePassword.js';
+import mailSender from '../utils/mailSender.js';
 
 const getAllResidents = asyncHandler(async (req, res) => {
     const admin = await ProfileVerification.findOne({ user: req.admin._id });
@@ -101,7 +103,7 @@ const getAllResidents = asyncHandler(async (req, res) => {
     // Count total matching documents for pagination
     const countPipeline = [...pipeline.slice(0, pipeline.findIndex(stage => stage.$project))];
     countPipeline.push({ $count: "total" });
-    
+
     const countResult = await ProfileVerification.aggregate(countPipeline);
     const totalCount = countResult.length > 0 ? countResult[0].total : 0;
     const totalPages = Math.ceil(totalCount / limit);
@@ -118,7 +120,7 @@ const getAllResidents = asyncHandler(async (req, res) => {
     if (members.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             societyMembers: members,
@@ -396,7 +398,7 @@ const getComplaints = asyncHandler(async (req, res) => {
         societyName: society.societyName,
         ...filters
     };
-    
+
     // Count total documents for pagination
     const totalCount = await Complaint.countDocuments(complaintMatch);
     const totalPages = Math.ceil(totalCount / limit);
@@ -406,9 +408,9 @@ const getComplaints = asyncHandler(async (req, res) => {
     }
 
     let updatedComplaint = await Complaint.find(complaintMatch)
-    .sort({ createdAt: -1 }) // Sort by newest complaint first
-    .populate("responses.responseBy", "userName email profile role phoneNo") 
-    .populate("raisedBy", "userName email profile role phoneNo"); 
+        .sort({ createdAt: -1 }) // Sort by newest complaint first
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -416,7 +418,7 @@ const getComplaints = asyncHandler(async (req, res) => {
     if (updatedComplaint.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             complaints: updatedComplaint,
@@ -470,7 +472,7 @@ const getPendingComplaints = asyncHandler(async (req, res) => {
         status: "pending",
         ...filters
     };
-    
+
     // Count total documents for pagination
     const totalCount = await Complaint.countDocuments(complaintMatch);
     const totalPages = Math.ceil(totalCount / limit);
@@ -480,9 +482,9 @@ const getPendingComplaints = asyncHandler(async (req, res) => {
     }
 
     let updatedComplaint = await Complaint.find(complaintMatch)
-    .sort({ createdAt: -1 }) // Sort by newest complaint first
-    .populate("responses.responseBy", "userName email profile role phoneNo") 
-    .populate("raisedBy", "userName email profile role phoneNo"); 
+        .sort({ createdAt: -1 }) // Sort by newest complaint first
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -490,7 +492,7 @@ const getPendingComplaints = asyncHandler(async (req, res) => {
     if (updatedComplaint.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             complaints: updatedComplaint,
@@ -544,7 +546,7 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
         status: "resolved",
         ...filters
     };
-    
+
     // Count total documents for pagination
     const totalCount = await Complaint.countDocuments(complaintMatch);
     const totalPages = Math.ceil(totalCount / limit);
@@ -554,9 +556,9 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
     }
 
     let updatedComplaint = await Complaint.find(complaintMatch)
-    .sort({ createdAt: -1 }) // Sort by newest complaint first
-    .populate("responses.responseBy", "userName email profile role phoneNo") 
-    .populate("raisedBy", "userName email profile role phoneNo"); 
+        .sort({ createdAt: -1 }) // Sort by newest complaint first
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo");
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -564,7 +566,7 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
     if (updatedComplaint.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             complaints: updatedComplaint,
@@ -580,4 +582,119 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
     );
 });
 
-export { getAllResidents, getAllGuards, removeResident, removeGuard, getAllAdmin, makeAdmin, removeAdmin, getComplaints, getPendingComplaints, getResolvedComplaints };
+const createTechnician = asyncHandler(async (req, res) => {
+    const { userName, email, phoneNo, role } = req.body;
+    const technicianPassword = generatePassword();
+
+    const user = await User.create({
+        userName,
+        email,
+        technicianPassword,
+        phoneNo,
+        userType: "Technician",
+        role,
+        isUserTypeVerified: true,
+        isVerified: true
+    });
+
+    const createdUser = await User.findById(user._id).select("_id userName email profile phoneNo role technicianPassword");
+
+    if (!createdUser) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
+    const mailResponse = await mailSender(email, createdUser._id, "VERIFY_TECHNICIAN", technicianPassword);
+
+    if (mailResponse) {
+        return res.status(200).json(
+            new ApiResponse(200, createdUser, "Technician created successfully. An email has been sent to the technician's account with the credentials.")
+        );
+    }
+
+    throw new ApiError(500, "Something went wrong!! An email couldn't sent to your account");
+})
+
+const getAllTechnicians = asyncHandler(async (req, res) => {
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const filters = {};
+
+    // Name/keyword search
+    if (req.query.search) {
+        filters.$or = [
+            { userName: { $regex: req.query.search, $options: 'i' } },
+            { phoneNo: { $regex: req.query.search, $options: 'i' } },
+            { role: { $regex: req.query.search, $options: 'i' } },
+        ];
+    }
+
+    // Base match conditions for DeliveryEntry
+    const techniciansMatch = {
+        userType: "Technician",
+        ...filters
+    };
+
+    // Count total documents for pagination
+    const totalCount = await Complaint.countDocuments(techniciansMatch);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    const technicians = await User.find(techniciansMatch).select("_id userName email profile phoneNo role technicianPassword");
+    if (technicians.length <= 0) {
+        throw new ApiError(404, "No technicians found");
+    }
+    const response = technicians.slice(skip, skip + limit);
+
+    if (response.length <= 0) {
+        throw new ApiError(500, "There is no entry");
+    }
+
+    const data = {
+        technicians: response,
+        pagination: {
+            totalEntries: totalCount,
+            entriesPerPage: limit,
+            currentPage: page,
+            totalPages: totalPages,
+            hasMore: page < totalPages
+        }
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, data, "Technicians fetched successfully")
+    );
+});
+
+const removeTechnician = asyncHandler(async (req, res) => {
+    const { id } = req.body;
+    const userId = mongoose.Types.ObjectId.createFromHexString(id);
+
+    const isDeleteTechnician = await User.deleteOne({ _id: userId, userType: "Technician" });
+
+    if (!isDeleteTechnician) {
+        throw new ApiError(500, "something went wrong");
+    }
+    
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Technician deleted successfully.")
+    );
+});
+
+export {
+    getAllResidents,
+    getAllGuards,
+    removeResident,
+    removeGuard,
+    getAllAdmin,
+    makeAdmin,
+    removeAdmin,
+    getComplaints,
+    getPendingComplaints,
+    getResolvedComplaints,
+    createTechnician,
+    getAllTechnicians,
+    removeTechnician
+};

@@ -29,6 +29,10 @@ const userSchema = new Schema({
     password: {
         type: String,
     },
+    
+    technicianPassword: {
+        type: String,
+    },
 
     isVerified: {
         type: Boolean,
@@ -46,13 +50,12 @@ const userSchema = new Schema({
 
     role: {
         type: String,
-        enum: ['user', 'admin', 'superadmin'],
         default: 'user'
     },
 
     userType: {
         type: String,
-        enum: ['Resident', 'Security'],
+        enum: ['Resident', 'Security', 'Technician'],
     },
 
     isUserTypeVerified: {
