@@ -51,6 +51,7 @@ import residentRouter from './routes/resident.routes.js';
 import complaintRouter from './routes/complaint.routes.js';
 import noticeBoardRouter from './routes/noticeBoard.routes.js';
 import guardDutyRouter from './routes/guardDutyLog.routes.js';
+import technicianRouter from './routes/technician.routes.js';
 
 //Routes declaration
 app.use("/api/v1/users", userRouter);
@@ -66,6 +67,7 @@ app.use("/api/v1/resident", residentRouter);
 app.use("/api/v1/complaint", complaintRouter);
 app.use("/api/v1/notice", noticeBoardRouter);
 app.use("/api/v1/guard-duty", guardDutyRouter);
+app.use("/api/v1/technician", technicianRouter);
 
 // Custom error handeling
 app.use((err, req, res, next) => {

@@ -1,0 +1,125 @@
+import asyncHandler from "../utils/asynchandler.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import ApiError from "../utils/ApiError.js";
+import { Complaint } from "../models/complaint.model.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { Resolution } from "../models/resolution.model.js";
+import mongoose from "mongoose";
+
+const getAssignedComplaints = asyncHandler(async (req, res) => {
+    const assignedComplaints = await Complaint.find({
+        technicianId: req.user._id,
+        assignStatus: "assigned"   
+    })
+    .sort({ createdAt: -1 })
+    .populate("raisedBy", "userName email profile role phoneNo")
+    .populate("technicianId", "userName email profile role phoneNo")
+    .populate("assignedBy", "userName email profile role phoneNo")
+    .populate({
+    path: 'resolution',
+    populate: [
+      { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+      { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+      { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+    ]
+  })
+    .select("-__v -responses");
+
+    if (!assignedComplaints || assignedComplaints.length === 0) {
+        throw new ApiError(404, "No assigned complaints found.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, assignedComplaints, "Assigned complaints fetched successfully.")
+    );
+});
+
+const addComplaintResolution = asyncHandler(async (req, res) => {
+    const { complaintId, resolutionNote } = req.body;
+    const complaintObjectId = mongoose.Types.ObjectId.createFromHexString(complaintId);
+    let resolutionAttachment = null;
+
+    if (req.file) {
+        const resolutionImg = await uploadOnCloudinary(req.file.path);
+        resolutionAttachment = resolutionImg?.secure_url;
+    }
+
+    const resolution = await Resolution.create({
+        complaintId: complaintObjectId,
+        resolutionAttachment: resolutionAttachment || '',
+        resolutionNote,
+        resolvedBy: req.user._id,
+        resolutionSubmittedAt: new Date(),
+        status: "under_review"
+    });
+
+    if (!resolution) {
+        throw new ApiError(500, "Failed to create resolution.");
+    }
+
+    const updatedComplaint = await Complaint.findByIdAndUpdate(
+        complaintObjectId,
+        {
+            resolution: resolution._id,
+        },
+        { new: true }
+    );
+
+    if (!updatedComplaint) {
+        throw new ApiError(404, "Complaint not found or could not be updated.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, updatedComplaint, "Complaint resolution added successfully.")
+    );
+});
+
+const rejectResolution = asyncHandler(async (req, res) => {
+    const { resolutionId, rejectedNote } = req.body;
+
+    const resolution = await Resolution.findByIdAndUpdate(
+        resolutionId,
+        {
+            status: "rejected",
+            rejecetdNote: rejectedNote,
+            rejectedBy: req.user._id
+        },
+        { new: true }
+    );
+
+    if (!resolution) {
+        throw new ApiError(404, "Resolution not found or could not be updated.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, resolution, "Resolution rejected successfully.")
+    );
+});
+
+const approveResolution = asyncHandler(async (req, res) => {
+    const { resolutionId } = req.body;
+
+    const resolution = await Resolution.findByIdAndUpdate(
+        resolutionId,
+        {
+            status: "approved",
+            approvedBy: req.user._id
+        },
+        { new: true }
+    );
+
+    if (!resolution) {
+        throw new ApiError(404, "Resolution not found or could not be updated.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, resolution, "Resolution approved successfully.")
+    );
+});
+
+export {
+    getAssignedComplaints,
+    addComplaintResolution,
+    rejectResolution,
+    approveResolution
+}

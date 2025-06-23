@@ -683,6 +683,36 @@ const removeTechnician = asyncHandler(async (req, res) => {
     );
 });
 
+const assignedTechnician = asyncHandler(async (req, res) => {
+    const { complaintId, technicianId } = req.body;
+    const complaintObjectId = mongoose.Types.ObjectId.createFromHexString(complaintId);
+    const technicianObjectId = mongoose.Types.ObjectId.createFromHexString(technicianId);
+
+    const complaint = await Complaint.findById(complaintObjectId);
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    const technician = await User.findById(technicianObjectId);
+    if (!technician || technician.userType !== "Technician") {
+        throw new ApiError(404, "Technician not found");
+    }
+
+    complaint.technicianId = technician._id;
+    complaint.assignStatus = "assigned";
+    complaint.assignedBy = req.admin._id;
+    complaint.assignedAt = new Date();
+
+    const updatedComplaint = await complaint.save({ validateBeforeSave: false });
+    if (!updatedComplaint) {
+        throw new ApiError(500, "Failed to assign technician to complaint");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, updatedComplaint, "Technician assigned to complaint successfully")
+    );
+});
+
 export {
     getAllResidents,
     getAllGuards,
@@ -696,5 +726,6 @@ export {
     getResolvedComplaints,
     createTechnician,
     getAllTechnicians,
-    removeTechnician
+    removeTechnician,
+    assignedTechnician
 };

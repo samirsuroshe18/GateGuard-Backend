@@ -2980,8 +2980,6 @@ const getCheckoutHistroy = asyncHandler(async (req, res) => {
 
     let response = [...deliveryEntry, ...preApprovedEntry];
 
-    console.log("Response", response);
-
     // Sort by exitTime in descending order (fallback to entryTime if exitTime is missing)
     response.sort((a, b) => {
         const timeA = new Date(a.exitTime || a.entryTime || 0).getTime();

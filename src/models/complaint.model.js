@@ -6,7 +6,7 @@ const ComplaintSchema = new Schema({
         ref: "User"
     },
 
-    societyName : {
+    societyName: {
         type: String,
         required: true
     },
@@ -52,25 +52,51 @@ const ComplaintSchema = new Schema({
         type: Number,
         min: 0,
         max: 5
-    }, 
+    },
 
     responses: [
         {
             responseBy: {
-                type: Schema.Types.ObjectId, 
-                ref: "User" 
+                type: Schema.Types.ObjectId,
+                ref: "User"
             },
             message: String,
-            date: { 
-                type: Date, 
+            date: {
+                type: Date,
                 default: Date.now
             },
         },
     ],
 
-    imageUrl: { 
-        type: String 
+    imageUrl: {
+        type: String
     },
+
+    technicianId: {
+        type: Schema.Types.ObjectId,
+        ref: "User"
+    },
+
+    assignedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User"
+    },
+
+    assignedAt: {
+        type: Date,
+        default: Date.now
+    },
+
+    assignStatus: {
+        type: String,
+        enum: ["assigned", "unassigned"],
+        default: "unassigned"
+    },
+
+    resolution : {
+        type: Schema.Types.ObjectId,
+        ref: "Resolution"
+    }
 
 }, { timestamps: true });
 

@@ -36,7 +36,10 @@ const resetPassword = asyncHandler(async (req, res) => {
       return res.render("invalidForgotLink")
     }
 
-    return res.render("forgotPasswordSuccess")
+    // return res.render("forgotPasswordSuccess")
+    return res.render("forgotPasswordSuccess", {
+      apiBaseUrl: process.env.DOMAIN_NAME
+    });
 
   } catch (error) {
     console.log(error.message);
