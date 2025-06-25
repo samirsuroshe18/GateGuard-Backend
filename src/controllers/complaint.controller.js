@@ -119,7 +119,7 @@ const getComplaints = asyncHandler(async (req, res) => {
     if (updatedComplaint.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             complaints: updatedComplaint,
@@ -137,7 +137,7 @@ const getComplaints = asyncHandler(async (req, res) => {
 const getComplaintDetails = asyncHandler(async (req, res) => {
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
     const complaint = await Complaint.findById(id)
-    .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("responses.responseBy", "userName email profile role phoneNo")
         .populate("raisedBy", "userName email profile role phoneNo");
 
     if (!complaint) {
@@ -173,9 +173,19 @@ const addResponse = asyncHandler(async (req, res) => {
             }
         },
         { new: true }
-    ).populate("responses.responseBy", "userName email profile role phoneNo")
+    )
+        .populate("responses.responseBy", "userName email profile role phoneNo")
         .populate("raisedBy", "userName email profile role phoneNo FCMToken")
-        .exec();
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     if (complaint.raisedBy._id.toString() === req.user._id.toString()) {
         const users = await ProfileVerification.find({ societyName: complaint.societyName })
@@ -223,8 +233,19 @@ const resolveComplaint = asyncHandler(async (req, res) => {
             $set: { status: "resolved" },
         },
         { new: true }  // Return the updated document
-    ).populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
+    )
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
@@ -277,7 +298,17 @@ const reopenComplaint = asyncHandler(async (req, res) => {
         },
         { new: true }  // Return the updated document
     ).populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo FCMToken");
+        .populate("raisedBy", "userName email profile role phoneNo FCMToken")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
@@ -324,9 +355,20 @@ const reopenComplaint = asyncHandler(async (req, res) => {
 
 const getResponse = asyncHandler(async (req, res) => {
     const id = mongoose.Types.ObjectId.createFromHexString(req.params.id);
+
     const complaint = await Complaint.findById(id)
         .populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     if (!complaint) {
         throw new ApiError(404, "Complaint not found");
@@ -381,7 +423,17 @@ const getPendingComplaints = asyncHandler(async (req, res) => {
     let updatedComplaint = await Complaint.find(complaintMatch)
         .sort({ createdAt: -1 }) // Sort by newest complaint first
         .populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -389,7 +441,7 @@ const getPendingComplaints = asyncHandler(async (req, res) => {
     if (updatedComplaint.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             complaints: updatedComplaint,
@@ -424,7 +476,7 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
             $lte: endDate
         };
     }
-    
+
     // Entry type filter
     if (req.query.entryType) {
         filters.entryType = req.query.entryType;
@@ -453,7 +505,17 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
     let updatedComplaint = await Complaint.find(complaintMatch)
         .sort({ createdAt: -1 }) // Sort by newest complaint first
         .populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -461,7 +523,7 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
     if (updatedComplaint.length <= 0) {
         throw new ApiError(404, "No entries found matching your criteria");
     }
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             complaints: updatedComplaint,

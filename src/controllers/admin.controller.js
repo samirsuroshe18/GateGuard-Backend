@@ -484,7 +484,17 @@ const getPendingComplaints = asyncHandler(async (req, res) => {
     let updatedComplaint = await Complaint.find(complaintMatch)
         .sort({ createdAt: -1 }) // Sort by newest complaint first
         .populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -558,7 +568,17 @@ const getResolvedComplaints = asyncHandler(async (req, res) => {
     let updatedComplaint = await Complaint.find(complaintMatch)
         .sort({ createdAt: -1 }) // Sort by newest complaint first
         .populate("responses.responseBy", "userName email profile role phoneNo")
-        .populate("raisedBy", "userName email profile role phoneNo");
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
 
     // Apply pagination on combined results
     updatedComplaint = updatedComplaint.slice(skip, skip + limit);
@@ -704,12 +724,31 @@ const assignedTechnician = asyncHandler(async (req, res) => {
     complaint.assignedAt = new Date();
 
     const updatedComplaint = await complaint.save({ validateBeforeSave: false });
+    
     if (!updatedComplaint) {
         throw new ApiError(500, "Failed to assign technician to complaint");
     }
 
+    const response = await Complaint.findById(updatedComplaint._id)
+        .populate("responses.responseBy", "userName email profile role phoneNo")
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        });
+
+    if (!response) {
+        throw new ApiError(500, "Failed to fetch updated complaint details");
+    }
+
     return res.status(200).json(
-        new ApiResponse(200, updatedComplaint, "Technician assigned to complaint successfully")
+        new ApiResponse(200, response, "Technician assigned to complaint successfully")
     );
 });
 

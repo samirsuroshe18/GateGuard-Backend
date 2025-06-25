@@ -23,7 +23,7 @@ const ResolutionSchema = new Schema({
         enum: ['pending', 'under_review', 'approved', 'rejected'],
         default: "pending"
     },
-    rejecetdNote: {
+    rejectedNote: {
         type: String,
     },
     approvedBy: {

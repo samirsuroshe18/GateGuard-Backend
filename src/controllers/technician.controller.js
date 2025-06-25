@@ -9,21 +9,22 @@ import mongoose from "mongoose";
 const getAssignedComplaints = asyncHandler(async (req, res) => {
     const assignedComplaints = await Complaint.find({
         technicianId: req.user._id,
-        assignStatus: "assigned"   
+        assignStatus: "assigned",
+        status: 'pending'
     })
-    .sort({ createdAt: -1 })
-    .populate("raisedBy", "userName email profile role phoneNo")
-    .populate("technicianId", "userName email profile role phoneNo")
-    .populate("assignedBy", "userName email profile role phoneNo")
-    .populate({
-    path: 'resolution',
-    populate: [
-      { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
-      { path: 'approvedBy', select: 'userName email profile role phoneNo' },
-      { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
-    ]
-  })
-    .select("-__v -responses");
+        .sort({ createdAt: -1 })
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        })
+        .select("-__v -responses");
 
     if (!assignedComplaints || assignedComplaints.length === 0) {
         throw new ApiError(404, "No assigned complaints found.");
@@ -31,6 +32,63 @@ const getAssignedComplaints = asyncHandler(async (req, res) => {
 
     return res.status(200).json(
         new ApiResponse(200, assignedComplaints, "Assigned complaints fetched successfully.")
+    );
+});
+
+const getResolvedComplaints = asyncHandler(async (req, res) => {
+    const assignedComplaints = await Complaint.find({
+        technicianId: req.user._id,
+        assignStatus: "assigned",
+        status: 'resolved'
+    })
+        .sort({ createdAt: -1 })
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        })
+        .select("-__v -responses");
+
+    if (!assignedComplaints || assignedComplaints.length === 0) {
+        throw new ApiError(404, "No assigned complaints found.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, assignedComplaints, "Assigned complaints fetched successfully.")
+    );
+});
+
+const getTechnicianDetails = asyncHandler(async (req, res) => {
+    const { complaintId } = req.body;
+    const complaintObjectId = mongoose.Types.ObjectId.createFromHexString(complaintId);
+
+    const complaintDetails = await Complaint.findById(complaintObjectId)
+        .sort({ createdAt: -1 })
+        .populate("raisedBy", "userName email profile role phoneNo")
+        .populate("technicianId", "userName email profile role phoneNo")
+        .populate("assignedBy", "userName email profile role phoneNo")
+        .populate({
+            path: 'resolution',
+            populate: [
+                { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+                { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+            ]
+        })
+        .select("-__v -responses");
+
+    if (!complaintDetails || complaintDetails.length === 0) {
+        throw new ApiError(404, "No assigned complaints found.");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, complaintDetails, "Assigned complaint details fetched successfully.")
     );
 });
 
@@ -63,7 +121,19 @@ const addComplaintResolution = asyncHandler(async (req, res) => {
             resolution: resolution._id,
         },
         { new: true }
-    );
+    )
+    .populate("raisedBy", "userName email profile role phoneNo")
+    .populate("technicianId", "userName email profile role phoneNo")
+    .populate("assignedBy", "userName email profile role phoneNo")
+    .populate({
+        path: 'resolution',
+        populate: [
+            { path: 'resolvedBy', select: 'userName email profile role phoneNo' },
+            { path: 'approvedBy', select: 'userName email profile role phoneNo' },
+            { path: 'rejectedBy', select: 'userName email profile role phoneNo' }
+        ]
+    })
+    .select("-__v -responses");
 
     if (!updatedComplaint) {
         throw new ApiError(404, "Complaint not found or could not be updated.");
@@ -81,7 +151,7 @@ const rejectResolution = asyncHandler(async (req, res) => {
         resolutionId,
         {
             status: "rejected",
-            rejecetdNote: rejectedNote,
+            rejectedNote: rejectedNote,
             rejectedBy: req.user._id
         },
         { new: true }
@@ -119,7 +189,9 @@ const approveResolution = asyncHandler(async (req, res) => {
 
 export {
     getAssignedComplaints,
+    getTechnicianDetails,
     addComplaintResolution,
     rejectResolution,
-    approveResolution
+    approveResolution,
+    getResolvedComplaints
 }
