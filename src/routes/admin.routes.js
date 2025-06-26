@@ -2,6 +2,7 @@ import { Router } from "express";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
 import { verifyAdmin } from "../middlewares/admin.middleware.js";
 import { assignedTechnician, createTechnician, getAllAdmin, getAllGuards, getAllResidents, getAllTechnicians, getComplaints, getPendingComplaints, getResolvedComplaints, makeAdmin, removeAdmin, removeGuard, removeResident, removeTechnician } from "../controllers/admin.controller.js";
+import { verifyMember } from "../middlewares/members.middleware.js";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.route('/remove-admin').post(verifyJwt, verifyAdmin, removeAdmin);
 router.route('/get-complaints').get(verifyJwt, verifyAdmin, getComplaints);
 router.route('/get-pending-complaints').get(verifyJwt, verifyAdmin, getPendingComplaints);
 router.route('/get-resolved-complaints').get(verifyJwt, verifyAdmin, getResolvedComplaints);
-router.route('/create-technician').post(verifyJwt, verifyAdmin, createTechnician);
+router.route('/create-technician').post(verifyJwt, verifyMember, verifyAdmin, createTechnician);
 router.route('/get-technicians').get(verifyJwt, verifyAdmin, getAllTechnicians);
 router.route('/remove-technician').post(verifyJwt, verifyAdmin, removeTechnician);
 router.route('/assign-technician').post(verifyJwt, verifyAdmin, assignedTechnician);

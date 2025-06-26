@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 import { Complaint } from '../models/complaint.model.js';
 import { generatePassword } from '../utils/generatePassword.js';
 import mailSender from '../utils/mailSender.js';
+import { sendNotification } from '../utils/sendResidentNotification.js';
 
 const getAllResidents = asyncHandler(async (req, res) => {
     const admin = await ProfileVerification.findOne({ user: req.admin._id });
@@ -623,6 +624,17 @@ const createTechnician = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong");
     }
 
+    const technicianProfile = await ProfileVerification.create({
+        user: createdUser._id,
+        profileType: 'Technician',
+        societyName: req.member.societyName,
+        residentStatus: 'approve',
+    });
+    
+    if (!technicianProfile) {
+        throw new ApiError(500, "Something went wrong");
+    }
+
     const mailResponse = await mailSender(email, createdUser._id, "VERIFY_TECHNICIAN", technicianPassword);
 
     if (mailResponse) {
@@ -745,6 +757,17 @@ const assignedTechnician = asyncHandler(async (req, res) => {
 
     if (!response) {
         throw new ApiError(500, "Failed to fetch updated complaint details");
+    }
+
+    let payload = {
+        id: response._id,
+        title: 'New Complaint Assigned',
+        message: 'You have been assigned a new complaint. Please review the details, address the issue, and submit your resolution promptly.',
+        action: 'ASSIGN_COMPLAINT',
+    };
+
+    if( technician?.FCMToken) {
+        sendNotification(technician.FCMToken, payload.action, JSON.stringify(payload));
     }
 
     return res.status(200).json(

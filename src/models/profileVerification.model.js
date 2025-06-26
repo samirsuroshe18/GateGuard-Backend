@@ -67,6 +67,12 @@ const profileVerificationSchema = new Schema({
         enum: ['none', 'pending', 'rejected', 'approve'],
         default: 'none'
     },
+    
+    technicianStatus: {
+        type: String,
+        enum: ['none', 'pending', 'rejected', 'approve'],
+        default: 'none'
+    },
 }, { timestamps: true });
 
 

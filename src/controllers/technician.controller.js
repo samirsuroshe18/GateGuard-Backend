@@ -5,6 +5,8 @@ import { Complaint } from "../models/complaint.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { Resolution } from "../models/resolution.model.js";
 import mongoose from "mongoose";
+import { ProfileVerification } from "../models/profileVerification.model.js";
+import { sendNotification } from "../utils/sendResidentNotification.js";
 
 const getAssignedComplaints = asyncHandler(async (req, res) => {
     const assignedComplaints = await Complaint.find({
@@ -139,6 +141,31 @@ const addComplaintResolution = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Complaint not found or could not be updated.");
     }
 
+    const results = await ProfileVerification.aggregate([
+    { $match: { societyName: req.member.societyName } },
+    {
+        $lookup: {
+        from: "users",
+        localField: "user",
+        foreignField: "_id",
+        as: "user"
+        }
+    },
+    { $unwind: "$user" },
+    { $match: { "user.role": "admin" } }
+    ]);
+
+    let payload = {
+        id: updatedComplaint._id,
+        title: 'Resolution Submitted for Review',
+        message: 'A technician has submitted a resolution for a complaint. Please review and approve or reject the resolution.',
+        action: 'REVIEW_RESOLUTION',
+    };
+
+    results.forEach(profile => {
+        sendNotification(profile.user.FCMToken, payload.action, JSON.stringify(payload));
+    });
+
     return res.status(200).json(
         new ApiResponse(200, updatedComplaint, "Complaint resolution added successfully.")
     );
@@ -155,11 +182,20 @@ const rejectResolution = asyncHandler(async (req, res) => {
             rejectedBy: req.user._id
         },
         { new: true }
-    );
+    ).populate("resolvedBy", "userName email profile role phoneNo FCMToken");
 
     if (!resolution) {
         throw new ApiError(404, "Resolution not found or could not be updated.");
     }
+
+    let payload = {
+        id: resolution.complaintId,
+        title: 'Resolution Rejected',
+        message: 'Your resolution for the complaint has been rejected. Please review the feedback and submit an updated resolution.',
+        action: 'RESOLUTION_REJECTED',
+    };
+
+    sendNotification(resolution.resolvedBy.FCMToken, payload.action, JSON.stringify(payload));
 
     return res.status(200).json(
         new ApiResponse(200, resolution, "Resolution rejected successfully.")
@@ -176,11 +212,20 @@ const approveResolution = asyncHandler(async (req, res) => {
             approvedBy: req.user._id
         },
         { new: true }
-    );
+    ).populate("resolvedBy", "userName email profile role phoneNo FCMToken");
 
     if (!resolution) {
         throw new ApiError(404, "Resolution not found or could not be updated.");
     }
+
+    let payload = {
+        id: resolution.complaintId,
+        title: 'Resolution Approved',
+        message: 'Your submitted resolution for the complaint has been approved by the society manager.',
+        action: 'RESOLUTION_APPROVED',
+    };
+
+    sendNotification(resolution.resolvedBy.FCMToken, payload.action, JSON.stringify(payload));
 
     return res.status(200).json(
         new ApiResponse(200, resolution, "Resolution approved successfully.")

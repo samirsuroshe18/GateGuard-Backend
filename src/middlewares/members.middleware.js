@@ -7,7 +7,8 @@ const verifyMember = asyncHandler(async (req, _, next) => {
         user: req.user._id,
         $or: [
             { residentStatus: "approve" },
-            { guardStatus: "approve" }
+            { guardStatus: "approve" },
+            { technicianStatus: "approve" }
         ]
     });
     
