@@ -10,6 +10,7 @@ import { ProfileVerification } from '../models/profileVerification.model.js';
 import { CheckInCode } from '../models/checkInCode.model.js';
 import { generateCheckInCode } from '../utils/generateCheckInCode.js';
 import { deleteCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
+import jwt from 'jsonwebtoken';
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -84,13 +85,7 @@ const loginUser = asyncHandler(async (req, res) => {
         loggedInUser.FCMToken = FCMToken;
         await loggedInUser.save({ validateBeforeSave: false });
 
-        //option object is created beacause we dont want to modified the cookie to front side
-        const option = {
-            httpOnly: true,
-            secure: true
-        }
-
-        return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
+        return res.status(200).json(
             new ApiResponse(200, {
                 loggedInUser,
                 accessToken,
@@ -126,16 +121,10 @@ const loginUser = asyncHandler(async (req, res) => {
     loggedInUser.FCMToken = FCMToken;
     await loggedInUser.save({ validateBeforeSave: false });
 
-    //option object is created beacause we dont want to modified the cookie to front side
-    const option = {
-        httpOnly: true,
-        secure: true
-    }
-
     const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
     const society = await ProfileVerification.findOne({ user: req?.user?._id });
 
-    return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
+    return res.status(200).json(
         new ApiResponse(200, {
             loggedInUser: {
                 ...loggedInUser.toObject(),
@@ -172,15 +161,10 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
         existedUser.profile = existedUser.profile || profile;
         await existedUser.save({ validateBeforeSave: false });
 
-        //option object is created beacause we dont want to modified the cookie to front side
-        const option = {
-            httpOnly: true,
-            secure: true
-        }
         const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
         const society = await ProfileVerification.findOne({ user: req?.user?._id });
 
-        return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
+        return res.status(200).json(
             new ApiResponse(200, {
                 loggedInUser: {
                     ...existedUser.toObject(),
@@ -213,16 +197,11 @@ const registerUserGoogle = asyncHandler(async (req, res) => {
 
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(createdUser._id);
 
-    //option object is created beacause we dont want to modified the cookie to front side
-    const option = {
-        httpOnly: true,
-        secure: true
-    }
 
     const checkInCode = await CheckInCode.findOne({ user: req?.user?._id });
     const society = await ProfileVerification.findOne({ user: req?.user?._id });
 
-    return res.status(200).cookie('accessToken', accessToken, option).cookie('refreshToken', refreshToken, option).json(
+    return res.status(200).json(
         new ApiResponse(200, {
             loggedInUser: {
                 ...createdUser.toObject(),
@@ -265,28 +244,33 @@ const linkGoogleAccount = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
+    const refreshToken = req.header("Authorization")?.replace("Bearer ", "");
 
-    await User.findByIdAndUpdate(
-        req.user._id,
-        {
-            $unset: {
-                refreshToken: 1,
-                FCMToken: 1
-            }
-        },
-        {
-            new: true
+    try {
+        // Only update database if refresh token exists
+        if (refreshToken) {
+            await User.findOneAndUpdate(
+                { refreshToken: refreshToken },
+                {
+                    $unset: {
+                        refreshToken: 1,
+                        FCMToken: 1,
+                    },
+                    $set: {
+                        isLoggedIn: false,
+                        lastLogout: new Date()
+                    }
+                },
+                { new: true }
+            );
         }
-    );
-
-    const option = {
-        httpOnly: true,
-        secure: true
+    } catch (error) {
+        // Log error but don't fail logout
+        console.error('Database update failed during logout:', error);
     }
 
-    return res.status(200).clearCookie("accessToken", option).clearCookie("refreshToken", option).json(
-        new ApiResponse(200, {}, "User logged out")
-    )
+    // Always clear cookies regardless of database operation result
+    return res.status(200).json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
@@ -385,38 +369,34 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    try {
-        const incomingRefreshToken = req.cookie?.refreshToken || req.header("Authorization")?.replace("Bearer ", "");
-
-        if (!incomingRefreshToken) {
-            throw new ApiError(401, "Unauthorized request");
-        }
-
-        const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
-
-        const user = await User.findById(decodedToken?._id);
-
-        if (!user) {
-            throw new ApiError(401, "Invalid refresh token");
-        }
-
-        if (incomingRefreshToken != user?.refreshToken) {
-            throw new ApiError(401, "Refresh token is expired or used");
-        }
-
-        const option = {
-            httpOnly: true,
-            secure: true
-        }
-
-        const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
-
-        return res.status(200).clearCookie("accessToken", accessToken, option).clearCookie("refreshToken", refreshToken, option).json(
-            new ApiResponse(200, { accessToken, refreshToken }, "Access token refreshed")
-        );
-    } catch (error) {
-        throw new ApiError(401, "Something went wrong : Invalid refresh token");
+    const incomingRefreshToken = req.cookies?.refreshToken || req.header("Authorization")?.replace("Bearer ", "");
+    
+    if (!incomingRefreshToken || incomingRefreshToken === "null" || incomingRefreshToken === "undefined") {
+        throw new ApiError(401, "Unauthorized request");
     }
+    
+    let decodedToken;
+    try {
+        decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            throw new ApiError(401, "Refresh token is expired");
+        }
+        throw new ApiError(403, "Invalid refresh token");
+    }
+    
+    const user = await User.findById(decodedToken?._id);
+    if (!user) {
+        throw new ApiError(401, "Invalid refresh token");
+    }
+    
+    if (incomingRefreshToken !== user.refreshToken) {
+        throw new ApiError(401, "Refresh token is expired or used");
+    }
+
+    const { accessToken } = await generateAccessAndRefreshToken(user._id);
+
+    return res.json(new ApiResponse(200, { accessToken }, "Access token refreshed"));
 });
 
 const addExtraInfo = asyncHandler(async (req, res) => {
